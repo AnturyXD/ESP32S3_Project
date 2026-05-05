@@ -20,6 +20,7 @@ static const char *TAG = "UI";
 namespace {
 
 constexpr uint32_t kLvglTickMs = 5;
+constexpr uint32_t kStatusTimerMs = 1000;
 constexpr uint32_t kUiTaskMinDelayMs = 5;
 constexpr uint32_t kUiTaskMaxDelayMs = 500;
 constexpr uint32_t kUiTaskStack = 6144;
@@ -27,6 +28,7 @@ constexpr UBaseType_t kUiTaskPrio = 4;
 static SemaphoreHandle_t s_lvgl_mux = nullptr;
 static esp_timer_handle_t s_lvgl_tick_timer = nullptr;
 static TaskHandle_t s_ui_task = nullptr;
+static lv_timer_t *s_status_timer = nullptr;
 
 static lv_disp_draw_buf_t s_disp_buf;
 static lv_disp_drv_t s_disp_drv;
@@ -106,6 +108,7 @@ static void ui_task(void *arg)
     for (;;) {
         if (ui_lvgl_lock(-1)) {
             ui_router_drain_pending_locked();
+            ui_router_refresh_status_locked();
             task_delay_ms = lv_timer_handler();
             ui_lvgl_unlock();
         }
@@ -171,6 +174,19 @@ esp_err_t ui_init(void)
     assert(s_lvgl_mux != nullptr);
 
     ESP_RETURN_ON_ERROR(ui_router_init(), TAG, "router init failed");
+    s_status_timer = lv_timer_create(
+        [](lv_timer_t *timer) {
+            (void)timer;
+            ui_router_refresh_status_locked();
+        },
+        kStatusTimerMs,
+        nullptr);
+    if (s_status_timer == nullptr) {
+        ESP_LOGE(TAG, "failed to create ui status timer");
+        return ESP_FAIL;
+    }
+    ESP_LOGI(TAG, "UI timer created, period=%u ms", static_cast<unsigned>(kStatusTimerMs));
+
     xTaskCreatePinnedToCore(ui_task, "ui_task", kUiTaskStack, nullptr, kUiTaskPrio, &s_ui_task, 0);
     ESP_LOGI(TAG, "UI task created");
 

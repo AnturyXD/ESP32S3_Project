@@ -12,6 +12,7 @@ extern "C" {
 esp_err_t ui_router_init(void);
 void ui_router_show_boot_placeholder_locked(void);
 bool ui_router_drain_pending_locked(void);
+void ui_router_refresh_status_locked(void);
 
 #ifdef __cplusplus
 }

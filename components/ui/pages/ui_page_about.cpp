@@ -6,8 +6,9 @@
 static const char *TAG = "UI_PAGE_ABT";
 static constexpr uint32_t kTextPrimary = 0xEAF2FF;
 
-void ui_page_about_create(lv_obj_t *screen, ui_page_nav_cb_t nav_cb)
+void ui_page_about_create(lv_obj_t *screen, ui_page_nav_cb_t nav_cb, ui_page_status_views_t *views)
 {
+    (void)views;
     ui_page_layout_t layout = ui_page_create_layout(screen, "About", APP_PAGE_ABOUT, nav_cb, lv_color_hex(0x171520));
     if (layout.content == nullptr) {
         ESP_LOGE(TAG, "failed to create about layout");

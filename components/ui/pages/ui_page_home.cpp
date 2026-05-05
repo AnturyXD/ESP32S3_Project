@@ -35,8 +35,13 @@ static void home_card_click_cb(lv_event_t *event)
 
 } // namespace
 
-void ui_page_home_create(lv_obj_t *screen, ui_page_nav_cb_t nav_cb)
+void ui_page_home_create(lv_obj_t *screen, ui_page_nav_cb_t nav_cb, ui_page_status_views_t *views)
 {
+    if (views != nullptr) {
+        views->home_time_label = nullptr;
+        views->home_wifi_label = nullptr;
+    }
+
     ui_page_layout_t layout = ui_page_create_layout(screen, "Home", APP_PAGE_HOME, nav_cb, lv_color_hex(0x101820));
     if (layout.content == nullptr) {
         ESP_LOGE(TAG, "failed to create home layout");
@@ -47,11 +52,17 @@ void ui_page_home_create(lv_obj_t *screen, ui_page_nav_cb_t nav_cb)
     lv_label_set_text(time_label, "--:--");
     lv_obj_align(time_label, LV_ALIGN_TOP_LEFT, 2, 2);
     lv_obj_set_style_text_color(time_label, lv_color_hex(kTextPrimary), 0);
+    if (views != nullptr) {
+        views->home_time_label = time_label;
+    }
 
     lv_obj_t *wifi_label = lv_label_create(layout.content);
     lv_label_set_text(wifi_label, "WiFi: Offline");
     lv_obj_align(wifi_label, LV_ALIGN_TOP_LEFT, 2, 24);
     lv_obj_set_style_text_color(wifi_label, lv_color_hex(kTextSecondary), 0);
+    if (views != nullptr) {
+        views->home_wifi_label = wifi_label;
+    }
 
     lv_obj_t *state_label = lv_label_create(layout.content);
     lv_label_set_text(state_label, "System: Ready");

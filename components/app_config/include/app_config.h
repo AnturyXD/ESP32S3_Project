@@ -11,8 +11,8 @@ For production, use a backend server or temporary token mechanism.
 Do not commit real API keys to Git.
 */
 
-#define WIFI_SSID "YOUR_WIFI_SSID"
-#define WIFI_PASSWORD "YOUR_WIFI_PASSWORD"
+#define WIFI_SSID "AX3000"
+#define WIFI_PASSWORD "15262810449"
 
 #define AI_USE_BACKEND_SERVER 0
 #define AI_PROVIDER "doubao"
