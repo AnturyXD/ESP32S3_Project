@@ -1,2 +1,2 @@
-source D:/Workspace/ESP32S3/11_FactoryProgram/build/bootloader/gdbinit/symbols
-source D:/Workspace/ESP32S3/11_FactoryProgram/build/bootloader/gdbinit/connect
+source D:/Workspace/ESP32S3/ESPAI/build/bootloader/gdbinit/symbols
+source D:/Workspace/ESP32S3/ESPAI/build/bootloader/gdbinit/connect

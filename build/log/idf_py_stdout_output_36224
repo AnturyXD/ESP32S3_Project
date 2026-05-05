@@ -1,0 +1,71 @@
+Command: cmake -G Ninja -DPYTHON_DEPS_CHECKED=1 -DPYTHON=C:\Espressif\tools\python\v5.5.4\venv\Scripts\python.exe -DESP_PLATFORM=1 -DCCACHE_ENABLE=0 D:\Workspace\ESP32S3\ESPAI
+-- IDF_TARGET is not set, guessed 'esp32s3' from sdkconfig 'D:/Workspace/ESP32S3/ESPAI/sdkconfig'
+-- Found Git: D:/data/Git/Git/cmd/git.exe (found version "2.53.0.windows.1") 
+-- Minimal build - OFF
+-- The C compiler identification is GNU 14.2.0
+-- The CXX compiler identification is GNU 14.2.0
+-- The ASM compiler identification is GNU
+-- Found assembler: C:/Espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc.exe
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: C:/Espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc.exe - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: C:/Espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-g++.exe - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Building ESP-IDF components for target esp32s3
+NOTICE: Skipping optional dependency: espressif/esp_lcd_ek79007
+NOTICE: Skipping optional dependency: espressif/esp_lcd_ili9881c
+NOTICE: Processing 7 dependencies:
+NOTICE: [1/7] espressif/cmake_utilities (0.5.3)
+NOTICE: [2/7] espressif/esp_codec_dev (1.3.6)
+NOTICE: [3/7] espressif/esp_io_expander (1.2.1)
+NOTICE: [4/7] espressif/esp_io_expander_tca9554 (2.0.3)
+NOTICE: [5/7] espressif/esp_lcd_axs15231b (1.0.1~1)
+NOTICE: [6/7] espressif/esp_lcd_touch (1.2.1)
+NOTICE: [7/7] idf (5.5.4)
+-- ESP-TEE is currently supported only on the esp32c6;esp32h2;esp32c5 SoCs
+NOTICE: Skipping optional dependency: espressif/esp_lcd_ek79007
+NOTICE: Skipping optional dependency: espressif/esp_lcd_ili9881c
+-- Project sdkconfig file D:/Workspace/ESP32S3/ESPAI/sdkconfig
+Loading defaults file D:/Workspace/ESP32S3/ESPAI/sdkconfig.defaults...
+-- Compiler supported targets: xtensa-esp-elf
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Found Python3: C:/Espressif/tools/python/v5.5.4/venv/Scripts/python.exe (found version "3.11.9") found components: Interpreter 
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE  
+-- Performing Test C_COMPILER_SUPPORTS_WFORMAT_SIGNEDNESS
+-- Performing Test C_COMPILER_SUPPORTS_WFORMAT_SIGNEDNESS - Success
+-- USING O3
+-- App "11_FactoryProgram" version: 5fd450f-dirty
+-- Adding linker script D:/Workspace/ESP32S3/ESPAI/build/esp-idf/esp_system/ld/memory.ld
+-- Adding linker script D:/Workspace/ESP32S3/ESPAI/build/esp-idf/esp_system/ld/sections.ld.in
+-- Adding linker script D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ld
+-- Adding linker script D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.api.ld
+-- Adding linker script D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.bt_funcs.ld
+-- Adding linker script D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.libgcc.ld
+-- Adding linker script D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.wdt.ld
+-- Adding linker script D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.version.ld
+-- Adding linker script D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_50.ld
+-- Adding linker script D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_cca.ld
+-- Adding linker script D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_test.ld
+-- Adding linker script D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.libc.ld
+-- Adding linker script D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.newlib.ld
+-- Adding linker script D:/data/ESP_IDF/v5.5.4/esp-idf/components/soc/esp32s3/ld/esp32s3.peripherals.ld
+-- ESP_LCD_AXS15231B: 1.0.1
+-- Components: SensorLib adc_bsp app_config app_shell app_trace app_update audio_bsp ble_scan_bsp bootloader bootloader_support bsp_board bt button_bsp cmock codec_board console cxx driver efuse esp-tls esp_adc esp_app_format esp_bootloader_format esp_coex esp_common esp_driver_ana_cmpr esp_driver_bitscrambler esp_driver_cam esp_driver_dac esp_driver_gpio esp_driver_gptimer esp_driver_i2c esp_driver_i2s esp_driver_isp esp_driver_jpeg esp_driver_ledc esp_driver_mcpwm esp_driver_parlio esp_driver_pcnt esp_driver_ppa esp_driver_rmt esp_driver_sdio esp_driver_sdm esp_driver_sdmmc esp_driver_sdspi esp_driver_spi esp_driver_touch_sens esp_driver_tsens esp_driver_twai esp_driver_uart esp_driver_usb_serial_jtag esp_eth esp_event esp_gdbstub esp_hal_ieee802154 esp_hid esp_http_client esp_http_server esp_https_ota esp_https_server esp_hw_support esp_lcd esp_local_ctrl esp_mm esp_netif esp_netif_stack esp_partition esp_phy esp_pm esp_psram esp_ringbuf esp_rom esp_security esp_system esp_timer esp_vfs_console esp_wifi esp_wifi_bsp espcoredump espressif__cmake_utilities espressif__esp_codec_dev espressif__esp_io_expander espressif__esp_io_expander_tca9554 espressif__esp_lcd_axs15231b espressif__esp_lcd_touch esptool_py fatfs freertos hal heap http_parser i2c_bsp i2c_equipment idf_test ieee802154 json lcd_bl_pwm_bsp log lvgl lwip main mbedtls mqtt newlib nvs_flash nvs_sec_provider openthread partition_table perfmon protobuf-c protocomm pthread rt sdcard_bsp sdmmc service_ai service_audio service_log service_network service_time soc spi_flash spiffs tcp_transport touch_element ui ui_bsp ulp unity usb user_app vfs wear_levelling wifi_provisioning wpa_supplicant xtensa
+-- Component paths: D:/Workspace/ESP32S3/ESPAI/components/SensorLib D:/Workspace/ESP32S3/ESPAI/components/adc_bsp D:/Workspace/ESP32S3/ESPAI/components/app_config D:/Workspace/ESP32S3/ESPAI/components/app_shell D:/data/ESP_IDF/v5.5.4/esp-idf/components/app_trace D:/data/ESP_IDF/v5.5.4/esp-idf/components/app_update D:/Workspace/ESP32S3/ESPAI/components/audio_bsp D:/Workspace/ESP32S3/ESPAI/components/ble_scan_bsp D:/data/ESP_IDF/v5.5.4/esp-idf/components/bootloader D:/data/ESP_IDF/v5.5.4/esp-idf/components/bootloader_support D:/Workspace/ESP32S3/ESPAI/components/bsp_board D:/data/ESP_IDF/v5.5.4/esp-idf/components/bt D:/Workspace/ESP32S3/ESPAI/components/button_bsp D:/data/ESP_IDF/v5.5.4/esp-idf/components/cmock D:/Workspace/ESP32S3/ESPAI/components/codec_board D:/data/ESP_IDF/v5.5.4/esp-idf/components/console D:/data/ESP_IDF/v5.5.4/esp-idf/components/cxx D:/data/ESP_IDF/v5.5.4/esp-idf/components/driver D:/data/ESP_IDF/v5.5.4/esp-idf/components/efuse D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp-tls D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_adc D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_app_format D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_bootloader_format D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_coex D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_common D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_ana_cmpr D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_bitscrambler D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_cam D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_dac D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_gpio D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_gptimer D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_i2c D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_i2s D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_isp D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_jpeg D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_ledc D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_mcpwm D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_parlio D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_pcnt D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_ppa D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_rmt D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_sdio D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_sdm D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_sdmmc D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_sdspi D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_spi D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_touch_sens D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_tsens D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_twai D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_uart D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_usb_serial_jtag D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_eth D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_event D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_gdbstub D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_hal_ieee802154 D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_hid D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_http_client D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_http_server D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_https_ota D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_https_server D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_hw_support D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_lcd D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_local_ctrl D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_mm D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_netif D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_netif_stack D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_partition D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_phy D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_pm D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_psram D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_ringbuf D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_security D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_system D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_timer D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_vfs_console D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_wifi D:/Workspace/ESP32S3/ESPAI/components/esp_wifi_bsp D:/data/ESP_IDF/v5.5.4/esp-idf/components/espcoredump D:/Workspace/ESP32S3/ESPAI/managed_components/espressif__cmake_utilities D:/Workspace/ESP32S3/ESPAI/managed_components/espressif__esp_codec_dev D:/Workspace/ESP32S3/ESPAI/managed_components/espressif__esp_io_expander D:/Workspace/ESP32S3/ESPAI/managed_components/espressif__esp_io_expander_tca9554 D:/Workspace/ESP32S3/ESPAI/managed_components/espressif__esp_lcd_axs15231b D:/Workspace/ESP32S3/ESPAI/managed_components/espressif__esp_lcd_touch D:/data/ESP_IDF/v5.5.4/esp-idf/components/esptool_py D:/data/ESP_IDF/v5.5.4/esp-idf/components/fatfs D:/data/ESP_IDF/v5.5.4/esp-idf/components/freertos D:/data/ESP_IDF/v5.5.4/esp-idf/components/hal D:/data/ESP_IDF/v5.5.4/esp-idf/components/heap D:/data/ESP_IDF/v5.5.4/esp-idf/components/http_parser D:/Workspace/ESP32S3/ESPAI/components/i2c_bsp D:/Workspace/ESP32S3/ESPAI/components/i2c_equipment D:/data/ESP_IDF/v5.5.4/esp-idf/components/idf_test D:/data/ESP_IDF/v5.5.4/esp-idf/components/ieee802154 D:/data/ESP_IDF/v5.5.4/esp-idf/components/json D:/Workspace/ESP32S3/ESPAI/components/lcd_bl_pwm_bsp D:/data/ESP_IDF/v5.5.4/esp-idf/components/log D:/Workspace/ESP32S3/ESPAI/components/lvgl D:/data/ESP_IDF/v5.5.4/esp-idf/components/lwip D:/Workspace/ESP32S3/ESPAI/main D:/data/ESP_IDF/v5.5.4/esp-idf/components/mbedtls D:/data/ESP_IDF/v5.5.4/esp-idf/components/mqtt D:/data/ESP_IDF/v5.5.4/esp-idf/components/newlib D:/data/ESP_IDF/v5.5.4/esp-idf/components/nvs_flash D:/data/ESP_IDF/v5.5.4/esp-idf/components/nvs_sec_provider D:/data/ESP_IDF/v5.5.4/esp-idf/components/openthread D:/data/ESP_IDF/v5.5.4/esp-idf/components/partition_table D:/data/ESP_IDF/v5.5.4/esp-idf/components/perfmon D:/data/ESP_IDF/v5.5.4/esp-idf/components/protobuf-c D:/data/ESP_IDF/v5.5.4/esp-idf/components/protocomm D:/data/ESP_IDF/v5.5.4/esp-idf/components/pthread D:/data/ESP_IDF/v5.5.4/esp-idf/components/rt D:/Workspace/ESP32S3/ESPAI/components/sdcard_bsp D:/data/ESP_IDF/v5.5.4/esp-idf/components/sdmmc D:/Workspace/ESP32S3/ESPAI/components/service_ai D:/Workspace/ESP32S3/ESPAI/components/service_audio D:/Workspace/ESP32S3/ESPAI/components/service_log D:/Workspace/ESP32S3/ESPAI/components/service_network D:/Workspace/ESP32S3/ESPAI/components/service_time D:/data/ESP_IDF/v5.5.4/esp-idf/components/soc D:/data/ESP_IDF/v5.5.4/esp-idf/components/spi_flash D:/data/ESP_IDF/v5.5.4/esp-idf/components/spiffs D:/data/ESP_IDF/v5.5.4/esp-idf/components/tcp_transport D:/data/ESP_IDF/v5.5.4/esp-idf/components/touch_element D:/Workspace/ESP32S3/ESPAI/components/ui D:/Workspace/ESP32S3/ESPAI/components/ui_bsp D:/data/ESP_IDF/v5.5.4/esp-idf/components/ulp D:/data/ESP_IDF/v5.5.4/esp-idf/components/unity D:/data/ESP_IDF/v5.5.4/esp-idf/components/usb D:/Workspace/ESP32S3/ESPAI/components/user_app D:/data/ESP_IDF/v5.5.4/esp-idf/components/vfs D:/data/ESP_IDF/v5.5.4/esp-idf/components/wear_levelling D:/data/ESP_IDF/v5.5.4/esp-idf/components/wifi_provisioning D:/data/ESP_IDF/v5.5.4/esp-idf/components/wpa_supplicant D:/data/ESP_IDF/v5.5.4/esp-idf/components/xtensa
+-- Configuring done (14.7s)
+-- Generating done (0.8s)
+-- Build files have been written to: D:/Workspace/ESP32S3/ESPAI/build

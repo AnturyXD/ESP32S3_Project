@@ -17,4 +17,4 @@ set confirm off
 set confirm on
 
 # Load application symbols
-file D:/Workspace/ESP32S3/11_FactoryProgram/build/bootloader/bootloader.elf
+file D:/Workspace/ESP32S3/ESPAI/build/bootloader/bootloader.elf

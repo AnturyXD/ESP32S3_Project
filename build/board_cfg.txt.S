@@ -1,4 +1,4 @@
-/* * Data converted from D:/Workspace/ESP32S3/11_FactoryProgram/components/codec_board/board_cfg.txt
+/* * Data converted from D:/Workspace/ESP32S3/ESPAI/components/codec_board/board_cfg.txt
  * (null byte appended)
  */
 .data

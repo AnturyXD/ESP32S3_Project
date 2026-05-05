@@ -1,0 +1,158 @@
+Command: ninja all
+[1/160] Generating project_elf_src_esp32s3.c
+[2/160] Generating D:/Workspace/ESP32S3/ESPAI/build/esp-idf/esp_system/ld/memory.ld linker script...
+[3/160] Generating D:/Workspace/ESP32S3/ESPAI/build/esp-idf/esp_system/ld/sections.ld.in linker script...
+[4/160] Linking C static library esp-idf\esp_https_ota\libesp_https_ota.a
+[5/160] Generating ../../partition_table/partition-table.bin
+Partition table binary generated. Contents:
+*******************************************************************************
+# ESP-IDF Partition Table
+# Name, Type, SubType, Offset, Size, Flags
+nvs,data,nvs,0x9000,24K,
+phy_init,data,phy,0xf000,4K,
+factory,app,factory,0x10000,8M,
+*******************************************************************************
+[6/160] Creating directories for 'bootloader'
+[7/160] Linking C static library esp-idf\esp_http_server\libesp_http_server.a
+[8/160] No download step for 'bootloader'
+[9/160] No update step for 'bootloader'
+[10/160] Linking C static library esp-idf\esp_http_client\libesp_http_client.a
+[11/160] No patch step for 'bootloader'
+[12/160] Linking C static library esp-idf\tcp_transport\libtcp_transport.a
+[13/160] Linking C static library esp-idf\esp_adc\libesp_adc.a
+[14/160] Linking C static library esp-idf\esp-tls\libesp-tls.a
+[15/160] Linking C static library esp-idf\http_parser\libhttp_parser.a
+[16/160] Linking C static library esp-idf\driver\libdriver.a
+[17/160] Linking C static library esp-idf\esp_driver_twai\libesp_driver_twai.a
+[18/160] Linking C static library esp-idf\esp_driver_ledc\libesp_driver_ledc.a
+[19/160] Linking C static library esp-idf\esp_driver_i2c\libesp_driver_i2c.a
+[20/160] Linking C static library esp-idf\esp_driver_sdm\libesp_driver_sdm.a
+[21/160] Linking C static library esp-idf\esp_driver_tsens\libesp_driver_tsens.a
+[22/160] Linking C static library esp-idf\esp_driver_rmt\libesp_driver_rmt.a
+[23/160] Linking C static library esp-idf\esp_driver_sdspi\libesp_driver_sdspi.a
+[24/160] Linking C static library esp-idf\esp_driver_sdmmc\libesp_driver_sdmmc.a
+[25/160] Linking C static library esp-idf\sdmmc\libsdmmc.a
+[26/160] Linking C static library esp-idf\esp_driver_i2s\libesp_driver_i2s.a
+[27/160] Linking C static library esp-idf\esp_driver_mcpwm\libesp_driver_mcpwm.a
+[28/160] Linking C static library esp-idf\esp_driver_pcnt\libesp_driver_pcnt.a
+[29/160] Linking C static library esp-idf\esp_gdbstub\libesp_gdbstub.a
+[30/160] Linking C static library esp-idf\esp_driver_spi\libesp_driver_spi.a
+[31/160] Linking C static library esp-idf\esp_wifi\libesp_wifi.a
+[32/160] Linking C static library esp-idf\esp_coex\libesp_coex.a
+[33/160] Linking C static library esp-idf\wpa_supplicant\libwpa_supplicant.a
+[34/160] Linking C static library esp-idf\esp_netif\libesp_netif.a
+[35/160] Linking C static library esp-idf\lwip\liblwip.a
+[36/160] Linking C static library esp-idf\vfs\libvfs.a
+[37/160] Linking C static library esp-idf\esp_vfs_console\libesp_vfs_console.a
+[38/160] Linking C static library esp-idf\esp_driver_usb_serial_jtag\libesp_driver_usb_serial_jtag.a
+[39/160] Linking C static library esp-idf\esp_phy\libesp_phy.a
+[40/160] Linking C static library esp-idf\nvs_flash\libnvs_flash.a
+[41/160] Linking C static library esp-idf\esp_event\libesp_event.a
+[42/160] Linking C static library esp-idf\esp_driver_uart\libesp_driver_uart.a
+[43/160] Linking C static library esp-idf\esp_psram\libesp_psram.a
+[44/160] Linking C static library esp-idf\esp_ringbuf\libesp_ringbuf.a
+[45/160] Linking C static library esp-idf\esp_driver_gptimer\libesp_driver_gptimer.a
+[46/160] Linking C static library esp-idf\esp_timer\libesp_timer.a
+[47/160] Linking C static library esp-idf\cxx\libcxx.a
+[48/160] Linking C static library esp-idf\pthread\libpthread.a
+[49/160] Linking C static library esp-idf\newlib\libnewlib.a
+[50/160] Linking C static library esp-idf\freertos\libfreertos.a
+[51/160] Linking C static library esp-idf\esp_hw_support\libesp_hw_support.a
+[52/160] Linking C static library esp-idf\esp_security\libesp_security.a
+[53/160] Linking C static library esp-idf\soc\libsoc.a
+[54/160] Linking C static library esp-idf\heap\libheap.a
+[55/160] Linking C static library esp-idf\log\liblog.a
+[56/160] Linking C static library esp-idf\hal\libhal.a
+[57/160] Linking C static library esp-idf\esp_rom\libesp_rom.a
+[58/160] Linking C static library esp-idf\esp_common\libesp_common.a
+[59/160] Linking C static library esp-idf\esp_system\libesp_system.a
+[60/160] Linking C static library esp-idf\spi_flash\libspi_flash.a
+[61/160] Linking C static library esp-idf\esp_mm\libesp_mm.a
+[62/160] Linking C static library esp-idf\bootloader_support\libbootloader_support.a
+[63/160] Linking C static library esp-idf\efuse\libefuse.a
+[64/160] Linking C static library esp-idf\esp_partition\libesp_partition.a
+[65/160] Linking C static library esp-idf\app_update\libapp_update.a
+[66/160] Linking C static library esp-idf\esp_bootloader_format\libesp_bootloader_format.a
+[67/160] Linking C static library esp-idf\esp_app_format\libesp_app_format.a
+[68/160] Linking CXX static library esp-idf\mbedtls\mbedtls\library\libmbedtls.a
+[69/160] Linking CXX static library esp-idf\mbedtls\mbedtls\library\libmbedx509.a
+[70/160] Linking CXX static library esp-idf\mbedtls\mbedtls\library\libmbedcrypto.a
+[71/160] Linking CXX static library esp-idf\mbedtls\mbedtls\3rdparty\p256-m\libp256m.a
+[72/160] Linking CXX static library esp-idf\mbedtls\mbedtls\3rdparty\everest\libeverest.a
+[73/160] Generating ../../x509_crt_bundle.S
+[74/160] Building ASM object esp-idf/mbedtls/CMakeFiles/__idf_mbedtls.dir/__/__/x509_crt_bundle.S.obj
+[75/160] Building CXX object esp-idf/app_config/CMakeFiles/__idf_app_config.dir/app_config.cpp.obj
+[76/160] Building CXX object esp-idf/bsp_board/CMakeFiles/__idf_bsp_board.dir/bsp_board.cpp.obj
+[77/160] Building CXX object esp-idf/service_log/CMakeFiles/__idf_service_log.dir/service_log.cpp.obj
+[78/160] Building CXX object esp-idf/service_ai/CMakeFiles/__idf_service_ai.dir/service_ai.cpp.obj
+[79/160] Building CXX object esp-idf/app_shell/CMakeFiles/__idf_app_shell.dir/app_shell.cpp.obj
+[80/160] Building CXX object esp-idf/service_audio/CMakeFiles/__idf_service_audio.dir/service_audio.cpp.obj
+[81/160] Building CXX object esp-idf/service_network/CMakeFiles/__idf_service_network.dir/service_network.cpp.obj
+[82/160] Building CXX object esp-idf/service_time/CMakeFiles/__idf_service_time.dir/service_time.cpp.obj
+[83/160] Building CXX object esp-idf/ui/CMakeFiles/__idf_ui.dir/ui.cpp.obj
+[84/160] Building CXX object esp-idf/main/CMakeFiles/__idf_main.dir/app_main.cpp.obj
+FAILED: esp-idf/main/CMakeFiles/__idf_main.dir/app_main.cpp.obj 
+C:\Espressif\tools\xtensa-esp-elf\esp-14.2.0_20260121\xtensa-esp-elf\bin\xtensa-esp32s3-elf-g++.exe -DESP_PLATFORM -DIDF_VER=\"v5.5.4\" -DSOC_MMU_PAGE_SIZE=CONFIG_MMU_PAGE_SIZE -DSOC_XTAL_FREQ_MHZ=CONFIG_XTAL_FREQ -D_GLIBCXX_HAVE_POSIX_SEMAPHORE -D_GLIBCXX_USE_POSIX_SEMAPHORE -D_GNU_SOURCE -D_POSIX_READER_WRITER_LOCKS -ID:/Workspace/ESP32S3/ESPAI/build/config -ID:/Workspace/ESP32S3/ESPAI/main -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/newlib/platform_include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/freertos/config/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/freertos/config/include/freertos -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/freertos/config/xtensa/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/freertos/FreeRTOS-Kernel/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/freertos/FreeRTOS-Kernel/portable/xtensa/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/freertos/FreeRTOS-Kernel/portable/xtensa/include/freertos -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/freertos/esp_additions/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_hw_support/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_hw_support/include/soc -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_hw_support/include/soc/esp32s3 -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_hw_support/dma/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_hw_support/ldo/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_hw_support/debug_probe/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_hw_support/mspi_timing_tuning/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_hw_support/mspi_timing_tuning/tuning_scheme_impl/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_hw_support/power_supply/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_hw_support/port/esp32s3/. -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_hw_support/port/esp32s3/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_hw_support/mspi_timing_tuning/port/esp32s3/. -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_hw_support/mspi_timing_tuning/port/esp32s3/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/heap/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/heap/tlsf -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/log/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/soc/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/soc/esp32s3 -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/soc/esp32s3/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/soc/esp32s3/register -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/hal/platform_port/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/hal/esp32s3/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/hal/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom/esp32s3/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom/esp32s3/include/esp32s3 -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom/esp32s3 -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_common/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_system/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_system/port/soc -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_system/port/include/private -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/xtensa/esp32s3/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/xtensa/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/xtensa/deprecated_include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/lwip/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/lwip/include/apps -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/lwip/include/apps/sntp -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/lwip/lwip/src/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/lwip/port/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/lwip/port/freertos/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/lwip/port/esp32xx/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/lwip/port/esp32xx/include/arch -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/lwip/port/esp32xx/include/sys -ID:/Workspace/ESP32S3/ESPAI/components/app_config/include -ID:/Workspace/ESP32S3/ESPAI/components/app_shell/include -ID:/Workspace/ESP32S3/ESPAI/components/bsp_board/include -ID:/Workspace/ESP32S3/ESPAI/components/service_ai/include -ID:/Workspace/ESP32S3/ESPAI/components/service_audio/include -ID:/Workspace/ESP32S3/ESPAI/components/service_log/include -ID:/Workspace/ESP32S3/ESPAI/components/service_network/include -ID:/Workspace/ESP32S3/ESPAI/components/service_time/include -ID:/Workspace/ESP32S3/ESPAI/components/ui/include -ID:/Workspace/ESP32S3/ESPAI/managed_components/espressif__esp_io_expander_tca9554/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_i2c/include -ID:/Workspace/ESP32S3/ESPAI/managed_components/espressif__esp_io_expander/include -ID:/Workspace/ESP32S3/ESPAI/managed_components/espressif__esp_lcd_axs15231b/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/driver/deprecated -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/driver/i2c/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/driver/touch_sensor/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/driver/twai/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/driver/touch_sensor/esp32s3/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_pm/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_ringbuf/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_gpio/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_pcnt/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_gptimer/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_spi/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_mcpwm/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_ana_cmpr/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_i2s/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_sdmmc/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/sdmmc/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_sdspi/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_sdio/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_dac/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_rmt/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_tsens/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_sdm/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_uart/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/vfs/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_ledc/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_parlio/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_usb_serial_jtag/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_driver_twai/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_lcd/include -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_lcd/interface -ID:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_lcd/rgb/include -ID:/Workspace/ESP32S3/ESPAI/managed_components/espressif__esp_lcd_touch/include @"D:/Workspace/ESP32S3/ESPAI/build/toolchain/cxxflags" -fdiagnostics-color=always -fdiagnostics-color=always -ffunction-sections -fdata-sections -Wall -Werror=all -Wno-error=unused-function -Wno-error=unused-variable -Wno-error=unused-but-set-variable -Wno-error=deprecated-declarations -Wextra -Wno-error=extra -Wno-unused-parameter -Wno-sign-compare -Wno-enum-conversion -gdwarf-4 -ggdb -Og -fno-shrink-wrap -fmacro-prefix-map=D:/Workspace/ESP32S3/ESPAI=. -fmacro-prefix-map=D:/data/ESP_IDF/v5.5.4/esp-idf=/IDF -fstrict-volatile-bitfields -fno-jump-tables -fno-tree-switch-conversion -std=gnu++2b -fno-exceptions -fuse-cxa-atexit -DESP_LCD_AXS15231B_VER_MAJOR=1 -DESP_LCD_AXS15231B_VER_MINOR=0 -DESP_LCD_AXS15231B_VER_PATCH=1 -MD -MT esp-idf/main/CMakeFiles/__idf_main.dir/app_main.cpp.obj -MF esp-idf\main\CMakeFiles\__idf_main.dir\app_main.cpp.obj.d -o esp-idf/main/CMakeFiles/__idf_main.dir/app_main.cpp.obj -c D:/Workspace/ESP32S3/ESPAI/main/app_main.cpp
+D:/Workspace/ESP32S3/ESPAI/main/app_main.cpp:7:10: fatal error: esp_psram.h: No such file or directory
+    7 | #include "esp_psram.h"
+      |          ^~~~~~~~~~~~~
+compilation terminated.
+[85/160] Building C object esp-idf/lcd_bl_pwm_bsp/CMakeFiles/__idf_lcd_bl_pwm_bsp.dir/lcd_bl_pwm_bsp.c.obj
+[86/160] Linking C static library esp-idf\mbedtls\libmbedtls.a
+[87/160] Building C object esp-idf/i2c_bsp/CMakeFiles/__idf_i2c_bsp.dir/i2c_bsp.c.obj
+[88/160] Building CXX object esp-idf/i2c_equipment/CMakeFiles/__idf_i2c_equipment.dir/i2c_equipment.cpp.obj
+[89/160] Performing configure step for 'bootloader'
+-- Minimal build - OFF
+-- The C compiler identification is GNU 14.2.0
+-- The CXX compiler identification is GNU 14.2.0
+-- The ASM compiler identification is GNU
+-- Found assembler: C:/Espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc.exe
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: C:/Espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc.exe - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: C:/Espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-g++.exe - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Building ESP-IDF components for target esp32s3
+-- ESP-TEE is currently supported only on the esp32c6;esp32h2;esp32c5 SoCs
+-- Project sdkconfig file D:/Workspace/ESP32S3/ESPAI/sdkconfig
+-- Compiler supported targets: xtensa-esp-elf
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Adding linker script D:/data/ESP_IDF/v5.5.4/esp-idf/components/soc/esp32s3/ld/esp32s3.peripherals.ld
+-- Bootloader project name: "bootloader" version: 1
+-- Adding linker script D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ld
+-- Adding linker script D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.api.ld
+-- Adding linker script D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.bt_funcs.ld
+-- Adding linker script D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.libgcc.ld
+-- Adding linker script D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.wdt.ld
+-- Adding linker script D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.version.ld
+-- Adding linker script D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.libc.ld
+-- Adding linker script D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.newlib.ld
+-- Adding linker script D:/data/ESP_IDF/v5.5.4/esp-idf/components/bootloader/subproject/main/ld/esp32s3/bootloader.rom.ld
+Python was not found; run without arguments to install from the Microsoft Store, or disable this shortcut from Settings > Apps > Advanced app settings > App execution aliases.
+CMake Warning at D:/data/ESP_IDF/v5.5.4/esp-idf/tools/cmake/gdbinit.cmake:52 (message):
+  Error while generating esp_rom gdbinit
+Call Stack (most recent call first):
+  D:/data/ESP_IDF/v5.5.4/esp-idf/tools/cmake/project.cmake:356 (__generate_gdbinit)
+  D:/data/ESP_IDF/v5.5.4/esp-idf/tools/cmake/project.cmake:979 (__project_info)
+  CMakeLists.txt:71 (project)
+
+
+-- Components: bootloader bootloader_support efuse esp_app_format esp_bootloader_format esp_common esp_hw_support esp_rom esp_security esp_system esptool_py freertos hal log main micro-ecc newlib partition_table soc spi_flash xtensa
+-- Component paths: D:/data/ESP_IDF/v5.5.4/esp-idf/components/bootloader D:/data/ESP_IDF/v5.5.4/esp-idf/components/bootloader_support D:/data/ESP_IDF/v5.5.4/esp-idf/components/efuse D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_app_format D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_bootloader_format D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_common D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_hw_support D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_rom D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_security D:/data/ESP_IDF/v5.5.4/esp-idf/components/esp_system D:/data/ESP_IDF/v5.5.4/esp-idf/components/esptool_py D:/data/ESP_IDF/v5.5.4/esp-idf/components/freertos D:/data/ESP_IDF/v5.5.4/esp-idf/components/hal D:/data/ESP_IDF/v5.5.4/esp-idf/components/log D:/data/ESP_IDF/v5.5.4/esp-idf/components/bootloader/subproject/main D:/data/ESP_IDF/v5.5.4/esp-idf/components/bootloader/subproject/components/micro-ecc D:/data/ESP_IDF/v5.5.4/esp-idf/components/newlib D:/data/ESP_IDF/v5.5.4/esp-idf/components/partition_table D:/data/ESP_IDF/v5.5.4/esp-idf/components/soc D:/data/ESP_IDF/v5.5.4/esp-idf/components/spi_flash D:/data/ESP_IDF/v5.5.4/esp-idf/components/xtensa
+-- Adding linker script D:/data/ESP_IDF/v5.5.4/esp-idf/components/bootloader/subproject/main/ld/esp32s3/bootloader.ld
+-- Configuring done (8.7s)
+-- Generating done (0.1s)
+-- Build files have been written to: D:/Workspace/ESP32S3/ESPAI/build/bootloader
+ninja: build stopped: subcommand failed.
