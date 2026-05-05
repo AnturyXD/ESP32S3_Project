@@ -1,0 +1,2 @@
+source D:/Workspace/ESP32S3/11_FactoryProgram/build/gdbinit/symbols
+source D:/Workspace/ESP32S3/11_FactoryProgram/build/gdbinit/connect

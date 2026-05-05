@@ -1,0 +1,18 @@
+{
+  "idf.currentSetup": "D:\\data\\ESP_IDF\\v5.5.4\\esp-idf",
+  "idf.flashType": "UART",
+  "idf.portWin": "COM8",
+  "idf.openOcdConfigs": [
+    "board/esp32s3-builtin.cfg"
+  ],
+  "idf.customExtraVars": {
+    "OPENOCD_USB_ADAPTER_LOCATION": "2-3.2",
+    "IDF_TARGET": "esp32s3"
+  },
+  "clangd.path": "C:\\Espressif\\tools\\esp-clang\\esp-19.1.2_20250312\\esp-clang\\bin\\clangd.exe",
+  "clangd.arguments": [
+    "--background-index",
+    "--query-driver=**",
+    "--compile-commands-dir=d:\\Workspace\\ESP32S3\\11_FactoryProgram\\build"
+  ]
+}
