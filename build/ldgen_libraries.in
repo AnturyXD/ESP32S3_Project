@@ -176,6 +176,11 @@ $<TARGET_FILE:idf::service_audio>
 $<TARGET_FILE:idf::service_log>
 $<TARGET_FILE:idf::service_network>
 $<TARGET_FILE:__idf_app_config>
+$<TARGET_FILE:idf::espressif__esp_io_expander>
+$<TARGET_FILE:idf::espressif__esp_io_expander_tca9554>
+$<TARGET_FILE:__idf_espressif__esp_io_expander>
+$<TARGET_FILE:idf::service_power>
+$<TARGET_FILE:__idf_espressif__esp_io_expander_tca9554>
 $<TARGET_FILE:idf::service_time>
 $<TARGET_FILE:__idf_service_network>
 $<TARGET_FILE:idf::lvgl>
@@ -184,12 +189,9 @@ $<TARGET_FILE:__idf_app_shell>
 $<TARGET_FILE:__idf_bsp_board>
 $<TARGET_FILE:__idf_lvgl>
 $<TARGET_FILE:__idf_service_time>
-$<TARGET_FILE:idf::espressif__esp_io_expander>
-$<TARGET_FILE:idf::espressif__esp_io_expander_tca9554>
-$<TARGET_FILE:__idf_espressif__esp_io_expander>
 $<TARGET_FILE:idf::main>
 $<TARGET_FILE:__idf_service_ai>
 $<TARGET_FILE:__idf_service_audio>
 $<TARGET_FILE:__idf_service_log>
+$<TARGET_FILE:__idf_service_power>
 $<TARGET_FILE:__idf_ui>
-$<TARGET_FILE:__idf_espressif__esp_io_expander_tca9554>

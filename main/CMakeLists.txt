@@ -10,6 +10,7 @@ idf_component_register(
         service_audio
         service_log
         service_network
+        service_power
         service_time
         ui
 )

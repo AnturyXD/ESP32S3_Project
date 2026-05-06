@@ -9,6 +9,7 @@
 #include "service_audio.h"
 #include "service_log.h"
 #include "service_network.h"
+#include "service_power.h"
 #include "service_time.h"
 #include "ui.h"
 
@@ -27,6 +28,8 @@ extern "C" void app_main(void)
 
     app_config_log_summary();
 
+    ESP_ERROR_CHECK(service_power_init());
+    ESP_ERROR_CHECK(service_power_start_task());
     ESP_ERROR_CHECK(bsp_board_init());
     ESP_ERROR_CHECK(ui_init());
     ESP_ERROR_CHECK(app_shell_init());

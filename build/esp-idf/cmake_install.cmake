@@ -619,6 +619,21 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
+  include("D:/Workspace/ESP32S3/ESPAI/build/esp-idf/espressif__esp_io_expander/cmake_install.cmake")
+endif()
+
+if(NOT CMAKE_INSTALL_LOCAL_ONLY)
+  # Include the install script for the subdirectory.
+  include("D:/Workspace/ESP32S3/ESPAI/build/esp-idf/espressif__esp_io_expander_tca9554/cmake_install.cmake")
+endif()
+
+if(NOT CMAKE_INSTALL_LOCAL_ONLY)
+  # Include the install script for the subdirectory.
+  include("D:/Workspace/ESP32S3/ESPAI/build/esp-idf/service_power/cmake_install.cmake")
+endif()
+
+if(NOT CMAKE_INSTALL_LOCAL_ONLY)
+  # Include the install script for the subdirectory.
   include("D:/Workspace/ESP32S3/ESPAI/build/esp-idf/service_time/cmake_install.cmake")
 endif()
 
@@ -630,16 +645,6 @@ endif()
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
   include("D:/Workspace/ESP32S3/ESPAI/build/esp-idf/ui/cmake_install.cmake")
-endif()
-
-if(NOT CMAKE_INSTALL_LOCAL_ONLY)
-  # Include the install script for the subdirectory.
-  include("D:/Workspace/ESP32S3/ESPAI/build/esp-idf/espressif__esp_io_expander/cmake_install.cmake")
-endif()
-
-if(NOT CMAKE_INSTALL_LOCAL_ONLY)
-  # Include the install script for the subdirectory.
-  include("D:/Workspace/ESP32S3/ESPAI/build/esp-idf/espressif__esp_io_expander_tca9554/cmake_install.cmake")
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
