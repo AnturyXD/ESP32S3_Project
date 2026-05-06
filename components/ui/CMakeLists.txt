@@ -10,5 +10,5 @@ idf_component_register(
         "pages/ui_page_about.cpp"
         "pages/ui_page_placeholder.cpp"
     INCLUDE_DIRS "include"
-    REQUIRES app_shell bsp_board esp_timer freertos log lvgl service_network service_time
+    REQUIRES app_shell bsp_board esp_timer freertos log lvgl service_audio service_network service_time
 )

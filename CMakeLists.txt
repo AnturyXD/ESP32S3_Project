@@ -11,7 +11,6 @@ set(EXCLUDE_COMPONENTS
     audio_bsp
     ble_scan_bsp
     button_bsp
-    codec_board
     esp_wifi_bsp
     i2c_bsp
     i2c_equipment

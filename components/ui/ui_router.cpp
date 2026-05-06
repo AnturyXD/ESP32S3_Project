@@ -9,6 +9,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "lvgl.h"
+#include "service_audio.h"
 #include "service_network.h"
 #include "service_time.h"
 #include "ui_pages.h"
@@ -28,6 +29,7 @@ static ui_page_status_views_t s_views = {};
 static uint32_t s_missing_label_warn_count = 0;
 static uint32_t s_last_net_revision = 0;
 static uint32_t s_last_time_revision = 0;
+static uint32_t s_last_audio_revision = 0;
 static lv_obj_t *s_bound_screen = nullptr;
 
 static void ui_router_clear_views(void)
@@ -137,13 +139,16 @@ static void ui_router_refresh_status_internal_locked(bool force)
     const int64_t now_us = esp_timer_get_time();
     const uint32_t net_revision = service_network_get_revision();
     const uint32_t time_revision = service_time_get_revision();
-    const bool state_changed = (net_revision != s_last_net_revision) || (time_revision != s_last_time_revision) || force;
+    const uint32_t audio_revision = service_audio_get_revision();
+    const bool state_changed =
+        (net_revision != s_last_net_revision) || (time_revision != s_last_time_revision) || (audio_revision != s_last_audio_revision) || force;
     if (!state_changed && (now_us - s_last_status_refresh_us < kStatusRefreshUs)) {
         return;
     }
     s_last_status_refresh_us = now_us;
     s_last_net_revision = net_revision;
     s_last_time_revision = time_revision;
+    s_last_audio_revision = audio_revision;
 
     char ip[16] = {0};
     char last_event[64] = {0};
@@ -155,12 +160,29 @@ static void ui_router_refresh_status_internal_locked(bool force)
 
     const char *time_state_str = service_time_get_state_string();
     const char *time_str = service_time_get_time_string();
+    const char *audio_state_str = service_audio_get_state_string();
+    const char *audio_event_str = service_audio_get_last_event();
+    const uint32_t audio_pcm_bytes = service_audio_get_last_pcm_bytes();
+    const uint16_t audio_peak = service_audio_get_peak_level();
+    const bool audio_recording = service_audio_is_recording();
+    const bool audio_playing = service_audio_is_playing();
     bool has_label_change = false;
 
     if (s_views.home_time_label != nullptr || s_views.home_wifi_label != nullptr) {
         has_label_change |= ui_router_set_label_text(s_views.home_time_label, time_str);
         snprintf(line, sizeof(line), "WiFi: %s", net_state_str);
         has_label_change |= ui_router_set_label_text(s_views.home_wifi_label, line);
+    }
+
+    if (s_views.ai_audio_state_label != nullptr || s_views.ai_pcm_bytes_label != nullptr || s_views.ai_peak_label != nullptr) {
+        snprintf(line, sizeof(line), "Audio State: %s", audio_state_str);
+        has_label_change |= ui_router_set_label_text(s_views.ai_audio_state_label, line);
+
+        snprintf(line, sizeof(line), "Last PCM Bytes: %lu", static_cast<unsigned long>(audio_pcm_bytes));
+        has_label_change |= ui_router_set_label_text(s_views.ai_pcm_bytes_label, line);
+
+        snprintf(line, sizeof(line), "Peak Level: %u", static_cast<unsigned>(audio_peak));
+        has_label_change |= ui_router_set_label_text(s_views.ai_peak_label, line);
     }
 
     if (s_active_page == APP_PAGE_SETTINGS) {
@@ -184,6 +206,24 @@ static void ui_router_refresh_status_internal_locked(bool force)
 
         snprintf(line, sizeof(line), "Last Event: %s", last_event);
         has_label_change |= ui_router_set_label_text(s_views.debug_last_event_label, line);
+
+        snprintf(line, sizeof(line), "Audio State: %s", audio_state_str);
+        has_label_change |= ui_router_set_label_text(s_views.debug_audio_state_label, line);
+
+        snprintf(line, sizeof(line), "Last Audio Event: %s", audio_event_str);
+        has_label_change |= ui_router_set_label_text(s_views.debug_audio_event_label, line);
+
+        snprintf(line, sizeof(line), "Last PCM Bytes: %lu", static_cast<unsigned long>(audio_pcm_bytes));
+        has_label_change |= ui_router_set_label_text(s_views.debug_audio_pcm_label, line);
+
+        snprintf(line, sizeof(line), "Peak Level: %u", static_cast<unsigned>(audio_peak));
+        has_label_change |= ui_router_set_label_text(s_views.debug_audio_peak_label, line);
+
+        snprintf(line, sizeof(line), "Recording: %s", audio_recording ? "Yes" : "No");
+        has_label_change |= ui_router_set_label_text(s_views.debug_audio_rec_label, line);
+
+        snprintf(line, sizeof(line), "Playing: %s", audio_playing ? "Yes" : "No");
+        has_label_change |= ui_router_set_label_text(s_views.debug_audio_play_label, line);
     }
 
     (void)has_label_change;
