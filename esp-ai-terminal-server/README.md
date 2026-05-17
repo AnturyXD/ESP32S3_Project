@@ -1,8 +1,8 @@
 ﻿# ESP AI Terminal Server
 
-这是 ESP32-S3 触屏 AI 语音终端的轻量服务器网关。当前阶段只做设备管理、鉴权和心跳验证，不接真实 ASR / LLM / TTS API。
+这是 ESP32-S3 触屏 AI 语音终端的轻量服务器网关。当前阶段已完成设备管理、鉴权和心跳验证，S0.5 只新增服务器侧火山 ASR 配置检查与 smoke test，不接 ESP32 音频上传。
 
-当前阶段：S0.4  
+当前阶段：S0.5  
 默认内部端口：`127.0.0.1:18080`  
 临时公网调试端口：`0.0.0.0:18080`，必须手动确认安全组和 UFW
 
@@ -18,7 +18,7 @@
 - 不修改 systemd
 - 不修改 Docker / Docker Compose
 - 不占用 80 / 443
-- 不接真实 ASR / LLM / TTS
+- S0.5 只允许服务器侧 ASR 自测，不接 LLM / TTS，不接 ESP32 音频上传
 - 不在仓库提交 `.env`、API Key、Token、密码
 
 ## 2. 当前接口
@@ -37,6 +37,12 @@ GET /audit/runtime
 POST /api/esp-ai-terminal/devices/register
 POST /api/esp-ai-terminal/devices/heartbeat
 GET  /api/esp-ai-terminal/devices/{device_id}/status
+```
+
+ASR 配置检查接口，不返回任何密钥原文：
+
+```http
+GET /api/esp-ai-terminal/asr/config
 ```
 
 如果 `DEVICE_SHARED_SECRET` 为空或仍是 `CHANGE_ME`，开发阶段会临时放行设备接口并打印 warning。正式测试公网访问前必须配置真实共享密钥。
@@ -118,15 +124,34 @@ nano .env
 ```env
 APP_NAME=esp-ai-terminal-server
 APP_VERSION=0.1.0
-APP_STAGE=S0.4
+APP_STAGE=S0.5
 APP_HOST=127.0.0.1
 APP_PORT=18080
 LOG_LEVEL=INFO
 AI_PROVIDER=placeholder
 DEVICE_SHARED_SECRET=CHANGE_ME
+
+ASR_PROVIDER=volcengine
+ASR_WS_URL=wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async
 ASR_API_KEY=
-LLM_API_KEY=
+ASR_APP_KEY=
+ASR_ACCESS_KEY=
+ASR_RESOURCE_ID=volc.seedasr.sauc.duration
+ASR_AUDIO_FORMAT=pcm
+ASR_SAMPLE_RATE=16000
+ASR_BITS=16
+ASR_CHANNELS=1
+ASR_PACKET_MS=200
+
+LLM_PROVIDER=volcengine_ark
+ARK_API_KEY=
+ARK_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
+LLM_MODEL=
+
+TTS_PROVIDER=volcengine
+TTS_MODEL=seed-tts-2.0
 TTS_API_KEY=
+TTS_VOICE_TYPE=
 ```
 
 如果要让 ESP32 访问设备接口，请把 `DEVICE_SHARED_SECRET` 改成你自己生成的随机字符串。它不是火山引擎 API Key，而是 ESP32 到自建服务器之间的临时共享密钥。
@@ -138,6 +163,10 @@ openssl rand -hex 32
 ```
 
 不要把真实密钥发到聊天，也不要提交到仓库。
+
+火山 ASR 的 `ASR_API_KEY` 是另一套密钥，只能写入服务器本地 `.env`，不要写入 `.env.example`、README、聊天记录或 Git 仓库。
+
+如果火山控制台给你的流式 ASR 凭证是 App Key / Access Key 形式，可以填写 `ASR_APP_KEY` 和 `ASR_ACCESS_KEY`。smoke test 会优先使用这组官方流式 Header；如果这两个字段为空，才使用 `ASR_API_KEY` 对应的 `X-Api-Key` 模式。
 
 ## 7. 启动方式
 
@@ -206,6 +235,12 @@ curl http://127.0.0.1:18080/version
 
 ```bash
 curl http://127.0.0.1:18080/audit/runtime
+```
+
+ASR 配置检查，确认是否已读取火山 ASR 参数。该接口只返回 Key 是否配置，不返回 Key 原文：
+
+```bash
+curl http://127.0.0.1:18080/api/esp-ai-terminal/asr/config
 ```
 
 无 token 注册请求。如果已配置真实 `DEVICE_SHARED_SECRET`，应返回 `401`：
@@ -304,9 +339,111 @@ CLOUD: heartbeat ok, http_status=200
 
 结论：设备到服务器的最小安全通信链路已跑通。
 
-## 12. 下一步建议
+## 12. S0.5 火山 ASR 服务器侧自测
+
+S0.5 只验证服务器能否用本地 `.env` 中的火山 ASR 配置连通云端 ASR。它不会接 ESP32 音频，不会接 LLM，不会接 TTS，也不会修改 Nginx / UFW / systemd / Docker / Carshow。
+
+### 12.1 填写服务器本地 `.env`
+
+在服务器上编辑：
+
+```bash
+cd /home/ubuntu/esp-ai-terminal-server
+nano .env
+```
+
+至少确认这些字段：
+
+```env
+ASR_PROVIDER=volcengine
+ASR_WS_URL=wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async
+ASR_API_KEY=填写你的火山 ASR API Key
+ASR_APP_KEY=
+ASR_ACCESS_KEY=
+ASR_RESOURCE_ID=volc.seedasr.sauc.duration
+ASR_AUDIO_FORMAT=pcm
+ASR_SAMPLE_RATE=16000
+ASR_BITS=16
+ASR_CHANNELS=1
+ASR_PACKET_MS=200
+```
+
+`ASR_RESOURCE_ID=volc.seedasr.sauc.duration` 表示小时版资源，适合当前单设备开发调试。`.env` 已在 `.gitignore` 中，真实 Key 只应该留在服务器本地。
+
+火山流式 ASR 凭证可能有两种形式：
+
+- 如果你只有 API Key，填写 `ASR_API_KEY`。
+- 如果控制台给的是 App Key / Access Key，填写 `ASR_APP_KEY` 和 `ASR_ACCESS_KEY`，脚本会优先使用这组官方流式鉴权 Header。
+
+### 12.2 重启前台 Uvicorn
+
+如果当前 Uvicorn 正在前台运行，先在运行窗口按：
+
+```text
+Ctrl+C
+```
+
+本机安全调试：
+
+```bash
+cd /home/ubuntu/esp-ai-terminal-server
+. .venv/bin/activate
+uvicorn app.main:app --host 127.0.0.1 --port 18080
+```
+
+临时公网调试仍可继续使用：
+
+```bash
+cd /home/ubuntu/esp-ai-terminal-server
+. .venv/bin/activate
+uvicorn app.main:app --host 0.0.0.0 --port 18080
+```
+
+`0.0.0.0:18080` 只是临时公网调试方式，不建议长期裸露。正式方案应单独进入 HTTPS 反向代理阶段，本轮不修改 Nginx、不修改 UFW、不修改云安全组。
+
+### 12.3 测试 ASR 配置接口
+
+```bash
+curl http://127.0.0.1:18080/api/esp-ai-terminal/asr/config
+```
+
+期望看到：
+
+```json
+{
+  "status": "ok",
+  "provider": "volcengine",
+  "configured": true,
+  "api_key_configured": true
+}
+```
+
+如果 `configured=false`，先检查 `.env` 是否缺少 `ASR_API_KEY`、`ASR_WS_URL` 或 `ASR_RESOURCE_ID`。
+
+### 12.4 运行 ASR smoke test
+
+```bash
+cd /home/ubuntu/esp-ai-terminal-server
+. .venv/bin/activate
+python scripts/asr_smoke_test.py
+```
+
+脚本会生成 2 秒 `16kHz / 16bit / mono PCM` 测试音，按 200ms 分包，通过火山 ASR WebSocket 二进制协议发送。测试音可能识别不出有意义文本，这不一定代表链路失败；重点看是否出现鉴权错误、协议错误、WebSocket 连接错误和 `X-Tt-Logid`。
+
+### 12.5 常见错误
+
+- `ASR_API_KEY` 缺失：脚本会显示 `Config Missing`，请只在服务器本地 `.env` 填写。
+- `ASR_APP_KEY / ASR_ACCESS_KEY` 与 `ASR_API_KEY` 混淆：如果 `X-Api-Key` 模式失败，请改用火山流式 ASR 文档对应的 App Key / Access Key。
+- `ASR_RESOURCE_ID` 错误：可能返回鉴权或资源不可用错误，确认是否为 `volc.seedasr.sauc.duration`。
+- WebSocket 连接失败：检查服务器出站网络、DNS、火山服务地址和 TLS。
+- 火山鉴权失败：确认 `ASR_API_KEY` 是否属于火山 ASR 服务，且不要把设备的 `DEVICE_SHARED_SECRET` 当成火山 Key。
+- 协议封包错误：查看脚本打印的服务端返回消息和错误码。
+- `X-Tt-Logid`：如果服务端返回该字段，保留它用于火山控制台或工单排查。
+
+## 13. 下一步建议
 
 1. 不要长期裸露 `0.0.0.0:18080`。
 2. 进入正式公网阶段前，优先做 HTTPS 反向代理。
-3. 后续再接 ASR / LLM / TTS 代理，真实云端 API Key 只放服务器本地 `.env`。
-4. 后续可把设备状态从内存字典迁移到 SQLite。
+3. S0.5 自测通过后，再进入 V0.6：ESP32 音频经自建服务器代理 ASR。
+4. 后续再接 LLM / TTS 代理，真实云端 API Key 只放服务器本地 `.env`。
+5. 后续可把设备状态从内存字典迁移到 SQLite。

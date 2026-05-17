@@ -819,3 +819,292 @@ esp_err_t service_storage_init(void);
 5. 服务器已有其他项目，任何部署都必须先审计和避让。
 6. 设备端不长期保存云端 API Key。
 7. 后续 ASR / LLM / TTS 都优先经自建服务器代理。
+
+
+---
+
+## 15. S0.4 / S0.5 最新计划补充（2026-05-18）
+
+### 15.1 S0.4 当前结论
+
+当前可以记录为：
+
+```text
+S0.4 PASS：ESP32 → 自建 FastAPI 服务器的注册与周期心跳链路实机通过
+```
+
+已完成：
+
+1. 服务器端已运行到 S0.4。
+2. `/health` 正常。
+3. `/audit/runtime` 正常。
+4. `DEVICE_SHARED_SECRET_CONFIGURED=true`，设备鉴权已启用。
+5. 设备接口已支持 `X-Device-Token`。
+6. ESP32 已能成功联网并获取 IP。
+7. ESP32 已成功调用：
+   - `POST /api/esp-ai-terminal/devices/register`
+   - `POST /api/esp-ai-terminal/devices/heartbeat`
+8. 注册返回 `http_status=200`。
+9. 心跳返回 `http_status=200`。
+10. ESP32 串口确认 `token_configured=yes`，说明设备端和服务器端密钥匹配。
+11. `service_cloud` 已作为独立组件接入。
+12. UI 没有直接调用 HTTP / 云端 API。
+13. HTTP 请求没有阻塞 UI task。
+14. 云端状态通过 Debug 页面只读显示。
+15. `app_main.cpp` 仍只负责模块初始化。
+16. 服务器端仍未接真实 ASR / LLM / TTS。
+17. 没有修改 Carshow、Nginx、Docker、systemd。
+18. 真实 Wi-Fi、服务器地址、设备密钥放在本地 `app_secrets.h` / `.env`，未提交到仓库。
+
+关键实机日志：
+
+```text
+WIFI: IP_EVENT_STA_GOT_IP, ip=192.168.31.6
+CLOUD: POST /api/esp-ai-terminal/devices/register token_configured=yes
+CLOUD: device registered, http_status=200
+CLOUD: POST /api/esp-ai-terminal/devices/heartbeat token_configured=yes
+CLOUD: heartbeat ok, http_status=200
+```
+
+### 15.2 服务器访问方式当前策略
+
+当前如果服务器使用 `0.0.0.0:18080` 并已放行腾讯云安全组，这是临时公网调试方式。
+
+策略：
+
+```text
+短期调试：0.0.0.0:18080 + X-Device-Token + 云安全组临时放行
+正式建议：HTTPS 反向代理 → 127.0.0.1:18080
+```
+
+要求：
+
+1. 不建议长期裸露 `18080`。
+2. 临时公网调试时必须启用 `X-Device-Token`。
+3. 后续正式使用应改为 HTTPS 反向代理或更安全的访问方案。
+4. 不允许未审批就修改 Nginx。
+5. 不允许未审批就修改 UFW。
+6. 不允许未审批就写 systemd。
+7. 不允许未审批就改 Docker。
+8. 不允许影响 Carshow。
+
+### 15.3 当前服务器 API 规范
+
+当前已实现：
+
+```http
+GET  /health
+GET  /version
+GET  /audit/runtime
+
+POST /api/esp-ai-terminal/devices/register
+POST /api/esp-ai-terminal/devices/heartbeat
+GET  /api/esp-ai-terminal/devices/{device_id}/status
+```
+
+设备接口使用请求头：
+
+```http
+X-Device-Token: <DEVICE_SHARED_SECRET>
+```
+
+规则：
+
+1. `/health`、`/version`、`/audit/runtime` 可以不鉴权，但不能泄露密钥。
+2. `/api/esp-ai-terminal/devices/*` 必须支持 `X-Device-Token` 鉴权。
+3. 日志不能打印 token 原文。
+4. `DEVICE_SHARED_SECRET` 是 S0.4 临时共享密钥方案，后续可升级为设备证书、JWT 或短期 token。
+
+### 15.4 S0.5：服务器侧火山 ASR 接入与自测
+
+S0.5 是下一阶段。它只做服务器侧 ASR 配置和自测，不修改 ESP32 固件，不接 LLM，不接 TTS。
+
+S0.5 必须新增或更新服务器 `.env.example`：
+
+```env
+ASR_PROVIDER=volcengine
+ASR_WS_URL=wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async
+ASR_API_KEY=
+ASR_RESOURCE_ID=volc.seedasr.sauc.duration
+ASR_AUDIO_FORMAT=pcm
+ASR_SAMPLE_RATE=16000
+ASR_BITS=16
+ASR_CHANNELS=1
+ASR_PACKET_MS=200
+```
+
+S0.5 必须新增：
+
+```http
+GET /api/esp-ai-terminal/asr/config
+```
+
+返回内容允许包含：
+
+1. provider
+2. configured
+3. ws_url
+4. resource_id
+5. audio_format
+6. sample_rate
+7. bits
+8. channels
+9. packet_ms
+10. api_key_configured: true/false
+
+禁止返回：
+
+1. API Key 原文。
+2. Token 原文。
+3. Password 原文。
+
+S0.5 必须新增：
+
+```text
+scripts/asr_smoke_test.py
+```
+
+功能要求：
+
+1. 从服务器本地 `.env` 读取 ASR 配置。
+2. 检查 `ASR_API_KEY`、`ASR_WS_URL`、`ASR_RESOURCE_ID`。
+3. 生成 1~2 秒 16kHz / 16bit / mono PCM 测试音或静音。
+4. 通过 WebSocket 连接火山 ASR。
+5. 使用 Header：
+   - `X-Api-Key`
+   - `X-Api-Resource-Id`
+   - `X-Api-Request-Id`
+   - `X-Api-Sequence`
+6. 按 200ms 分包发送音频。
+7. 打印连接状态、返回消息、错误码、`X-Tt-Logid`。
+8. 打印已发送音频秒数和估算计费时长。
+9. 不打印 ASR API Key 原文。
+10. 火山 ASR WebSocket 使用二进制协议，不允许用普通文本 WebSocket 冒充成功。
+
+S0.5 验收标准：
+
+```text
+[ ] /api/esp-ai-terminal/asr/config 返回 configured=true
+[ ] /api/esp-ai-terminal/asr/config 不返回 ASR_API_KEY 原文
+[ ] asr_smoke_test.py 能读取服务器 .env
+[ ] 能连接火山 ASR WebSocket，或返回明确可排查错误
+[ ] 能打印 X-Tt-Logid
+[ ] 能统计发送音频秒数
+[ ] 不修改 ESP32 固件
+[ ] 不影响设备注册与心跳
+[ ] 不影响 Carshow
+```
+
+### 15.5 火山引擎模型选择
+
+本项目采用模块化云端 API 代理方案：
+
+```text
+ESP32-S3
+  ↓
+自建 FastAPI 服务器
+  ↓
+火山引擎：
+  ASR：Doubao-流式语音识别
+  LLM：火山方舟在线推理（常规）
+  TTS：Doubao-语音合成-2.0
+```
+
+ASR 当前选择：
+
+```text
+产品：豆包语音
+能力：Doubao-流式语音识别
+接口：大模型流式语音识别 API
+推荐地址：wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async
+资源 ID：volc.seedasr.sauc.duration
+音频格式：16kHz / 16bit / mono PCM
+分包建议：200ms
+```
+
+当前不要选择：
+
+1. Doubao-实时语音交互。
+2. 火山方舟在线推理低延迟版。
+3. TPM 保障包。
+4. 自定义模型部署。
+5. 声音复刻。
+6. ESP32 直连火山引擎 API。
+
+### 15.6 最新紧凑版本路线
+
+```text
+V0.5.2    TCA9554 共享 IO 状态保护修复：PASS
+V0.5.3    SD 卡外部存储接入：PASS / 基本正常
+S0.1      服务器只读审计与部署计划：PASS
+S0.2-pre  本地 esp-ai-terminal-server/ 服务端骨架：PASS
+S0.3      服务器最小运行 + 注册/心跳接口：PASS
+S0.4      ESP32 真机注册与周期心跳上报：PASS
+
+S0.5      服务器侧火山 ASR 配置、接口与 smoke test
+V0.6      ESP32 音频 → 服务器 → 火山 ASR → 屏幕显示识别文字
+V0.7      LLM 文本对话代理
+V0.8      TTS 代理与设备播放
+V0.9      AI Voice 状态机稳定性
+V1.0      MVP 演示版
+```
+
+### 15.7 给 Codex 的 S0.5 提示词
+
+```text
+当前进入 S0.5：服务器侧火山 ASR 接入与自测。
+
+当前状态：
+1. S0.4 已通过。
+2. ESP32 可以通过 Wi-Fi 访问自建 FastAPI 服务器。
+3. 设备注册接口返回 200。
+4. 设备心跳接口返回 200。
+5. DEVICE_SHARED_SECRET 已启用。
+6. X-Device-Token 鉴权已通过。
+7. service_cloud 已作为 ESP32 独立组件接入。
+8. 服务器端仍未接真实 ASR / LLM / TTS。
+9. 本轮只做服务器侧火山 ASR 接入与自测。
+10. 本轮不修改 ESP32 固件。
+11. 本轮不接 LLM。
+12. 本轮不接 TTS。
+13. 本轮不修改 Carshow、Nginx、Docker、systemd。
+14. 本轮不把 API Key、Token、密码写入仓库。
+15. 所有新增代码必须尽可能写完整中文注释。
+
+请完成：
+1. 更新 .env.example，增加火山 ASR 占位配置。
+2. app/core/config.py 增加 ASR 配置项。
+3. 新增 GET /api/esp-ai-terminal/asr/config。
+4. 新增 scripts/asr_smoke_test.py。
+5. smoke test 使用官方二进制 WebSocket 协议。
+6. 不泄露 ASR_API_KEY。
+7. 文档补充服务器 .env 配置和测试命令。
+8. 不影响设备注册与心跳。
+```
+
+### 15.8 V0.6 预告
+
+S0.5 通过后再进入：
+
+```text
+V0.6：ESP32 音频 → 服务器 → 火山 ASR → 屏幕显示识别文字
+```
+
+V0.6 前置条件：
+
+1. S0.5 已通过。
+2. 服务器 ASR 配置 complete。
+3. `asr_smoke_test.py` 能连接火山 ASR 或返回明确可排查错误。
+4. ESP32 `service_audio` 录音链路可输出 16kHz / 16bit / mono PCM。
+5. ESP32 `service_cloud` 已能访问服务器。
+6. ESP32 不保存火山 API Key。
+
+V0.6 目标：
+
+1. 服务器新增设备侧 ASR 上传接口或 WebSocket。
+2. ESP32 AI Voice 页面 Start ASR 按钮触发录音与上传。
+3. 服务器代理火山 ASR。
+4. 返回 partial / final text。
+5. AI Voice 页面显示识别文本。
+6. 限制最长录音时长，避免持续计费。
+7. 静音或停止按钮后结束 ASR。
