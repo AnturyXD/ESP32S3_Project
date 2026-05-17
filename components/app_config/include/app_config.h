@@ -1,15 +1,16 @@
-#pragma once
+﻿#pragma once
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /*
-WARNING:
-Storing API keys in firmware is only acceptable for local development and demo testing.
-For production, use a backend server or temporary token mechanism.
-Do not commit real API keys to Git.
-*/
+ * 应用编译期配置。
+ *
+ * 本文件可以提交到仓库，只能保存占位值和非敏感默认值。
+ * 本地真实 Wi-Fi、设备 token、服务器地址应写入同目录下的 app_secrets.h，
+ * app_secrets.h 已加入 .gitignore，避免误提交真实密钥。
+ */
 
 #if defined(__has_include)
 #if __has_include("app_secrets.h")
@@ -26,7 +27,7 @@ Do not commit real API keys to Git.
 #endif
 
 #define AI_USE_BACKEND_SERVER 0
-#define AI_PROVIDER "doubao"
+#define AI_PROVIDER "placeholder"
 
 #ifndef DOUBAO_API_KEY
 #define DOUBAO_API_KEY "YOUR_DOUBAO_API_KEY"
@@ -44,8 +45,25 @@ Do not commit real API keys to Git.
 #define DOUBAO_TTS_VOICE "YOUR_TTS_VOICE"
 #endif
 
-#define SERVER_BASE_URL "https://your-backend.example.com"
-#define SERVER_DEVICE_ID "ESP32S3_DEVICE_PLACEHOLDER"
+#ifndef CLOUD_SERVER_BASE_URL
+#define CLOUD_SERVER_BASE_URL ""
+#endif
+#ifndef DEVICE_ID
+#define DEVICE_ID "ESP32S3_DEVICE_PLACEHOLDER"
+#endif
+#ifndef DEVICE_SHARED_SECRET
+#define DEVICE_SHARED_SECRET ""
+#endif
+#ifndef APP_FIRMWARE_VERSION
+#define APP_FIRMWARE_VERSION "V0.5.3"
+#endif
+#ifndef DEVICE_HARDWARE_NAME
+#define DEVICE_HARDWARE_NAME "ESP32-S3-Touch-LCD-3.49"
+#endif
+
+/* 兼容早期占位宏，后续新代码统一使用 CLOUD_SERVER_BASE_URL / DEVICE_ID。 */
+#define SERVER_BASE_URL CLOUD_SERVER_BASE_URL
+#define SERVER_DEVICE_ID DEVICE_ID
 
 #define AUDIO_SAMPLE_RATE 16000
 #define AUDIO_BITS 16

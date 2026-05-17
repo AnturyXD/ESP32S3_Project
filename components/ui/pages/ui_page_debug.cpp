@@ -19,6 +19,17 @@ void ui_page_debug_create(lv_obj_t *screen, ui_page_nav_cb_t nav_cb, ui_page_sta
         views->debug_audio_peak_label = nullptr;
         views->debug_audio_rec_label = nullptr;
         views->debug_audio_play_label = nullptr;
+        views->debug_storage_state_label = nullptr;
+        views->debug_storage_mounted_label = nullptr;
+        views->debug_storage_total_label = nullptr;
+        views->debug_storage_free_label = nullptr;
+        views->debug_storage_event_label = nullptr;
+        views->debug_storage_error_label = nullptr;
+        views->debug_cloud_state_label = nullptr;
+        views->debug_cloud_registered_label = nullptr;
+        views->debug_cloud_heartbeat_label = nullptr;
+        views->debug_cloud_http_label = nullptr;
+        views->debug_cloud_error_label = nullptr;
     }
 
     ui_page_layout_t layout = ui_page_create_layout(screen, "Debug", APP_PAGE_DEBUG, nav_cb, lv_color_hex(0x0E141B));
@@ -97,5 +108,93 @@ void ui_page_debug_create(lv_obj_t *screen, ui_page_nav_cb_t nav_cb, ui_page_sta
     lv_obj_set_style_text_color(audio_play, lv_color_hex(kTextPrimary), 0);
     if (views != nullptr) {
         views->debug_audio_play_label = audio_play;
+    }
+
+    lv_obj_t *storage_state = lv_label_create(layout.content);
+    lv_label_set_text(storage_state, "Storage State: --");
+    lv_obj_align(storage_state, LV_ALIGN_TOP_LEFT, 2, 248);
+    lv_obj_set_style_text_color(storage_state, lv_color_hex(kTextPrimary), 0);
+    if (views != nullptr) {
+        views->debug_storage_state_label = storage_state;
+    }
+
+    lv_obj_t *storage_mounted = lv_label_create(layout.content);
+    lv_label_set_text(storage_mounted, "SD Mounted: No");
+    lv_obj_align(storage_mounted, LV_ALIGN_TOP_LEFT, 2, 274);
+    lv_obj_set_style_text_color(storage_mounted, lv_color_hex(kTextPrimary), 0);
+    if (views != nullptr) {
+        views->debug_storage_mounted_label = storage_mounted;
+    }
+
+    lv_obj_t *storage_total = lv_label_create(layout.content);
+    lv_label_set_text(storage_total, "Total: 0 MB");
+    lv_obj_align(storage_total, LV_ALIGN_TOP_LEFT, 2, 300);
+    lv_obj_set_style_text_color(storage_total, lv_color_hex(kTextPrimary), 0);
+    if (views != nullptr) {
+        views->debug_storage_total_label = storage_total;
+    }
+
+    lv_obj_t *storage_free = lv_label_create(layout.content);
+    lv_label_set_text(storage_free, "Free: 0 MB");
+    lv_obj_align(storage_free, LV_ALIGN_TOP_LEFT, 2, 326);
+    lv_obj_set_style_text_color(storage_free, lv_color_hex(kTextPrimary), 0);
+    if (views != nullptr) {
+        views->debug_storage_free_label = storage_free;
+    }
+
+    lv_obj_t *storage_event = lv_label_create(layout.content);
+    lv_label_set_text(storage_event, "Storage Event: --");
+    lv_obj_align(storage_event, LV_ALIGN_TOP_LEFT, 2, 352);
+    lv_obj_set_style_text_color(storage_event, lv_color_hex(kTextSecondary), 0);
+    if (views != nullptr) {
+        views->debug_storage_event_label = storage_event;
+    }
+
+    lv_obj_t *storage_error = lv_label_create(layout.content);
+    lv_label_set_text(storage_error, "Storage Error: None");
+    lv_obj_align(storage_error, LV_ALIGN_TOP_LEFT, 2, 378);
+    lv_obj_set_style_text_color(storage_error, lv_color_hex(kTextSecondary), 0);
+    if (views != nullptr) {
+        views->debug_storage_error_label = storage_error;
+    }
+
+    lv_obj_t *cloud_state = lv_label_create(layout.content);
+    lv_label_set_text(cloud_state, "Cloud State: --");
+    lv_obj_align(cloud_state, LV_ALIGN_TOP_LEFT, 2, 408);
+    lv_obj_set_style_text_color(cloud_state, lv_color_hex(kTextPrimary), 0);
+    if (views != nullptr) {
+        views->debug_cloud_state_label = cloud_state;
+    }
+
+    lv_obj_t *cloud_registered = lv_label_create(layout.content);
+    lv_label_set_text(cloud_registered, "Registered: No");
+    lv_obj_align(cloud_registered, LV_ALIGN_TOP_LEFT, 2, 434);
+    lv_obj_set_style_text_color(cloud_registered, lv_color_hex(kTextPrimary), 0);
+    if (views != nullptr) {
+        views->debug_cloud_registered_label = cloud_registered;
+    }
+
+    lv_obj_t *cloud_heartbeat = lv_label_create(layout.content);
+    lv_label_set_text(cloud_heartbeat, "Last Heartbeat: --");
+    lv_obj_align(cloud_heartbeat, LV_ALIGN_TOP_LEFT, 2, 460);
+    lv_obj_set_style_text_color(cloud_heartbeat, lv_color_hex(kTextSecondary), 0);
+    if (views != nullptr) {
+        views->debug_cloud_heartbeat_label = cloud_heartbeat;
+    }
+
+    lv_obj_t *cloud_http = lv_label_create(layout.content);
+    lv_label_set_text(cloud_http, "Last HTTP: 0");
+    lv_obj_align(cloud_http, LV_ALIGN_TOP_LEFT, 2, 486);
+    lv_obj_set_style_text_color(cloud_http, lv_color_hex(kTextPrimary), 0);
+    if (views != nullptr) {
+        views->debug_cloud_http_label = cloud_http;
+    }
+
+    lv_obj_t *cloud_error = lv_label_create(layout.content);
+    lv_label_set_text(cloud_error, "Cloud Error: None");
+    lv_obj_align(cloud_error, LV_ALIGN_TOP_LEFT, 2, 512);
+    lv_obj_set_style_text_color(cloud_error, lv_color_hex(kTextSecondary), 0);
+    if (views != nullptr) {
+        views->debug_cloud_error_label = cloud_error;
     }
 }

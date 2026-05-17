@@ -8,9 +8,11 @@ idf_component_register(
         esp_psram
         service_ai
         service_audio
+        service_cloud
         service_log
         service_network
         service_power
+        service_storage
         service_time
         ui
 )

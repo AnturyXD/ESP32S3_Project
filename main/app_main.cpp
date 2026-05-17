@@ -7,9 +7,11 @@
 #include "esp_psram.h"
 #include "service_ai.h"
 #include "service_audio.h"
+#include "service_cloud.h"
 #include "service_log.h"
 #include "service_network.h"
 #include "service_power.h"
+#include "service_storage.h"
 #include "service_time.h"
 #include "ui.h"
 
@@ -36,6 +38,8 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(service_network_init());
     ESP_ERROR_CHECK(service_time_init());
     ESP_ERROR_CHECK(service_audio_init());
+    ESP_ERROR_CHECK(service_storage_init());
+    ESP_ERROR_CHECK(service_cloud_init());
     ESP_ERROR_CHECK(service_ai_init());
 
     ESP_LOGI(TAG, "System boot done (V0.1 skeleton)");

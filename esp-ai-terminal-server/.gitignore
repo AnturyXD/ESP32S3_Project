@@ -1,0 +1,27 @@
+﻿# server 本地敏感与运行产物忽略规则
+# 真实环境变量文件只允许留在本机或服务器本地，不能进入仓库。
+.env
+.env.*
+!.env.example
+
+# Python 虚拟环境和缓存
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# 运行日志、临时文件和打包产物
+logs/
+*.log
+*.tar.gz
+*.zip
+/dist/
+/build/
+
+# 本地编辑器和系统文件
+.DS_Store
+Thumbs.db

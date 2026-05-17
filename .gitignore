@@ -1,3 +1,6 @@
-# Local secrets
+﻿# Local secrets
 components/app_config/include/app_secrets.h
 app_secrets.h
+
+# ESP-IDF build output
+/build/

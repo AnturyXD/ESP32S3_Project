@@ -6,15 +6,13 @@
 #include <string.h>
 
 #include "app_config.h"
+#include "bsp_io_expander.h"
 #include "codec_board.h"
 #include "codec_init.h"
 #include "esp_check.h"
 #include "esp_codec_dev.h"
 #include "esp_heap_caps.h"
-#include "esp_io_expander.h"
-#include "esp_io_expander_tca9554.h"
 #include "esp_log.h"
-#include "driver/i2c_master.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -42,8 +40,8 @@ constexpr float kToneFreqHz = 440.0f;
 constexpr uint32_t kToneDurationMs = 2000;
 constexpr int16_t kToneAmplitude = 11000;
 constexpr float kPi = 3.1415926535f;
-constexpr i2c_port_num_t kAudioCtrlI2cPort = I2C_NUM_0;
-constexpr uint32_t kSpeakerEnablePinMask = IO_EXPANDER_PIN_NUM_7;
+constexpr uint8_t kSysEnPin = 6;
+constexpr uint8_t kSpeakerEnablePin = 7;
 
 static bool s_inited = false;
 static bool s_recording = false;
@@ -54,7 +52,6 @@ static TaskHandle_t s_record_task = nullptr;
 static TaskHandle_t s_play_task = nullptr;
 static esp_codec_dev_handle_t s_playback = nullptr;
 static esp_codec_dev_handle_t s_record = nullptr;
-static esp_io_expander_handle_t s_audio_io_expander = nullptr;
 static audio_state_t s_state = AUDIO_STATE_UNINIT;
 static uint32_t s_last_pcm_bytes = 0;
 static uint16_t s_peak_level = 0;
@@ -205,32 +202,28 @@ static esp_err_t audio_open_streams_once(void)
 
 static esp_err_t audio_enable_speaker_path(void)
 {
-    if (s_audio_io_expander != nullptr) {
-        return ESP_OK;
-    }
-
-    i2c_master_bus_handle_t i2c_bus = nullptr;
-    esp_err_t err = i2c_master_get_bus_handle(kAudioCtrlI2cPort, &i2c_bus);
-    if (err != ESP_OK || i2c_bus == nullptr) {
-        ESP_LOGW(TAG_CODEC, "speaker path: cannot get I2C bus %d, err=%s", static_cast<int>(kAudioCtrlI2cPort), esp_err_to_name(err));
-        return err;
-    }
-
-    err = esp_io_expander_new_i2c_tca9554(i2c_bus, ESP_IO_EXPANDER_I2C_TCA9554_ADDRESS_000, &s_audio_io_expander);
-    if (err != ESP_OK || s_audio_io_expander == nullptr) {
-        ESP_LOGW(TAG_CODEC, "speaker path: tca9554 handle create failed, err=%s", esp_err_to_name(err));
-        return err;
-    }
+    ESP_RETURN_ON_ERROR(bsp_io_expander_init(), TAG_CODEC, "speaker path: IOX init failed");
 
     // 中文说明：
     // EXIO7 连接扬声器通路使能，必须拉高后功放路径才会导通，否则播放链路正常也会“无声”。
-    ESP_RETURN_ON_ERROR(esp_io_expander_set_dir(s_audio_io_expander, kSpeakerEnablePinMask, IO_EXPANDER_OUTPUT),
+    ESP_RETURN_ON_ERROR(bsp_io_expander_set_direction(kSpeakerEnablePin, true),
                         TAG_CODEC,
                         "speaker path: set EXIO7 direction failed");
-    ESP_RETURN_ON_ERROR(esp_io_expander_set_level(s_audio_io_expander, kSpeakerEnablePinMask, 1),
+    ESP_RETURN_ON_ERROR(bsp_io_expander_set_output(kSpeakerEnablePin, true),
                         TAG_CODEC,
                         "speaker path: set EXIO7 high failed");
-    ESP_LOGI(TAG_CODEC, "speaker path enabled: EXIO7=HIGH");
+    ESP_LOGI(TAG_CODEC, "service_audio set EXIO7 speaker enable HIGH");
+
+    bool sys_en_high = false;
+    ESP_RETURN_ON_ERROR(bsp_io_expander_get_output_level(kSysEnPin, &sys_en_high),
+                        TAG_CODEC,
+                        "speaker path: read EXIO6 failed");
+    if (!sys_en_high) {
+        ESP_LOGE(TAG_CODEC, "EXIO6 SYS_EN was overwritten, force restore HIGH");
+        ESP_RETURN_ON_ERROR(bsp_io_expander_set_direction(kSysEnPin, true), TAG_CODEC, "restore EXIO6 direction failed");
+        ESP_RETURN_ON_ERROR(bsp_io_expander_set_output(kSysEnPin, true), TAG_CODEC, "restore EXIO6 high failed");
+    }
+    ESP_LOGI(TAG_CODEC, "service_audio after speaker enable: EXIO6 state still HIGH");
     return ESP_OK;
 }
 

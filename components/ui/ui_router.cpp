@@ -10,7 +10,9 @@
 #include "freertos/queue.h"
 #include "lvgl.h"
 #include "service_audio.h"
+#include "service_cloud.h"
 #include "service_network.h"
+#include "service_storage.h"
 #include "service_time.h"
 #include "ui_pages.h"
 
@@ -30,6 +32,8 @@ static uint32_t s_missing_label_warn_count = 0;
 static uint32_t s_last_net_revision = 0;
 static uint32_t s_last_time_revision = 0;
 static uint32_t s_last_audio_revision = 0;
+static uint32_t s_last_cloud_revision = 0;
+static uint32_t s_last_storage_revision = 0;
 static lv_obj_t *s_bound_screen = nullptr;
 
 static void ui_router_clear_views(void)
@@ -140,8 +144,12 @@ static void ui_router_refresh_status_internal_locked(bool force)
     const uint32_t net_revision = service_network_get_revision();
     const uint32_t time_revision = service_time_get_revision();
     const uint32_t audio_revision = service_audio_get_revision();
+    const uint32_t cloud_revision = service_cloud_get_revision();
+    const uint32_t storage_revision = service_storage_get_revision();
     const bool state_changed =
-        (net_revision != s_last_net_revision) || (time_revision != s_last_time_revision) || (audio_revision != s_last_audio_revision) || force;
+        (net_revision != s_last_net_revision) || (time_revision != s_last_time_revision) ||
+        (audio_revision != s_last_audio_revision) || (cloud_revision != s_last_cloud_revision) ||
+        (storage_revision != s_last_storage_revision) || force;
     if (!state_changed && (now_us - s_last_status_refresh_us < kStatusRefreshUs)) {
         return;
     }
@@ -149,10 +157,12 @@ static void ui_router_refresh_status_internal_locked(bool force)
     s_last_net_revision = net_revision;
     s_last_time_revision = time_revision;
     s_last_audio_revision = audio_revision;
+    s_last_cloud_revision = cloud_revision;
+    s_last_storage_revision = storage_revision;
 
     char ip[16] = {0};
     char last_event[64] = {0};
-    char line[96] = {0};
+    char line[128] = {0};
 
     const char *net_state_str = service_network_is_connected() ? "Online" : service_network_get_state_string();
     service_network_get_ip(ip, sizeof(ip));
@@ -166,6 +176,17 @@ static void ui_router_refresh_status_internal_locked(bool force)
     const uint16_t audio_peak = service_audio_get_peak_level();
     const bool audio_recording = service_audio_is_recording();
     const bool audio_playing = service_audio_is_playing();
+    const char *storage_state_str = service_storage_get_state_string();
+    const char *storage_event_str = service_storage_get_last_event();
+    const char *storage_error_str = service_storage_get_last_error();
+    const bool storage_mounted = service_storage_is_mounted();
+    const uint64_t storage_total_mb = service_storage_get_total_bytes() / (1024ULL * 1024ULL);
+    const uint64_t storage_free_mb = service_storage_get_free_bytes() / (1024ULL * 1024ULL);
+    const char *cloud_state_str = service_cloud_get_state_string();
+    const bool cloud_registered = service_cloud_is_registered();
+    const char *cloud_heartbeat_str = service_cloud_get_last_heartbeat();
+    const int cloud_http_status = service_cloud_get_last_http_status();
+    const char *cloud_error_str = service_cloud_get_last_error();
     bool has_label_change = false;
 
     if (s_views.home_time_label != nullptr || s_views.home_wifi_label != nullptr) {
@@ -224,6 +245,39 @@ static void ui_router_refresh_status_internal_locked(bool force)
 
         snprintf(line, sizeof(line), "Playing: %s", audio_playing ? "Yes" : "No");
         has_label_change |= ui_router_set_label_text(s_views.debug_audio_play_label, line);
+
+        snprintf(line, sizeof(line), "Storage State: %s", storage_state_str);
+        has_label_change |= ui_router_set_label_text(s_views.debug_storage_state_label, line);
+
+        snprintf(line, sizeof(line), "SD Mounted: %s", storage_mounted ? "Yes" : "No");
+        has_label_change |= ui_router_set_label_text(s_views.debug_storage_mounted_label, line);
+
+        snprintf(line, sizeof(line), "Total: %llu MB", static_cast<unsigned long long>(storage_total_mb));
+        has_label_change |= ui_router_set_label_text(s_views.debug_storage_total_label, line);
+
+        snprintf(line, sizeof(line), "Free: %llu MB", static_cast<unsigned long long>(storage_free_mb));
+        has_label_change |= ui_router_set_label_text(s_views.debug_storage_free_label, line);
+
+        snprintf(line, sizeof(line), "Storage Event: %s", storage_event_str);
+        has_label_change |= ui_router_set_label_text(s_views.debug_storage_event_label, line);
+
+        snprintf(line, sizeof(line), "Storage Error: %s", storage_error_str);
+        has_label_change |= ui_router_set_label_text(s_views.debug_storage_error_label, line);
+
+        snprintf(line, sizeof(line), "Cloud State: %s", cloud_state_str);
+        has_label_change |= ui_router_set_label_text(s_views.debug_cloud_state_label, line);
+
+        snprintf(line, sizeof(line), "Registered: %s", cloud_registered ? "Yes" : "No");
+        has_label_change |= ui_router_set_label_text(s_views.debug_cloud_registered_label, line);
+
+        snprintf(line, sizeof(line), "Last Heartbeat: %s", cloud_heartbeat_str);
+        has_label_change |= ui_router_set_label_text(s_views.debug_cloud_heartbeat_label, line);
+
+        snprintf(line, sizeof(line), "Last HTTP: %d", cloud_http_status);
+        has_label_change |= ui_router_set_label_text(s_views.debug_cloud_http_label, line);
+
+        snprintf(line, sizeof(line), "Cloud Error: %s", cloud_error_str);
+        has_label_change |= ui_router_set_label_text(s_views.debug_cloud_error_label, line);
     }
 
     (void)has_label_change;

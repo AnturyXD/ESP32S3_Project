@@ -31,6 +31,17 @@ typedef struct {
     lv_obj_t *debug_audio_peak_label;
     lv_obj_t *debug_audio_rec_label;
     lv_obj_t *debug_audio_play_label;
+    lv_obj_t *debug_storage_state_label;
+    lv_obj_t *debug_storage_mounted_label;
+    lv_obj_t *debug_storage_total_label;
+    lv_obj_t *debug_storage_free_label;
+    lv_obj_t *debug_storage_event_label;
+    lv_obj_t *debug_storage_error_label;
+    lv_obj_t *debug_cloud_state_label;
+    lv_obj_t *debug_cloud_registered_label;
+    lv_obj_t *debug_cloud_heartbeat_label;
+    lv_obj_t *debug_cloud_http_label;
+    lv_obj_t *debug_cloud_error_label;
 } ui_page_status_views_t;
 
 void ui_page_home_create(lv_obj_t *parent, ui_page_nav_cb_t nav_cb, ui_page_status_views_t *views);

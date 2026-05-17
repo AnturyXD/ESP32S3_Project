@@ -3,11 +3,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "bsp_io_expander.h"
 #include "driver/gpio.h"
-#include "driver/i2c_master.h"
 #include "esp_check.h"
-#include "esp_io_expander.h"
-#include "esp_io_expander_tca9554.h"
 #include "esp_log.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
@@ -19,14 +17,11 @@ namespace {
 
 constexpr gpio_num_t kPwrGpio = GPIO_NUM_16;
 constexpr int kPwrPressedLevel = 0;
-constexpr i2c_port_num_t kPowerI2cPort = I2C_NUM_0;
-constexpr gpio_num_t kPowerI2cScl = GPIO_NUM_48;
-constexpr gpio_num_t kPowerI2cSda = GPIO_NUM_47;
 constexpr uint32_t kPollMs = 20;
 constexpr uint32_t kDebounceMs = 40;
 constexpr uint32_t kLongPressMs = 3000;
 constexpr uint32_t kShutdownDelayMs = 300;
-constexpr uint32_t kSysEnPinMask = IO_EXPANDER_PIN_NUM_6;
+constexpr uint8_t kSysEnPin = 6;
 constexpr uint32_t kTaskStack = 4096;
 constexpr UBaseType_t kTaskPrio = 4;
 
@@ -37,8 +32,6 @@ static bool s_shutdown_requested = false;
 static bool s_shutdown_done = false;
 static bool s_hold_enabled = false;
 static TaskHandle_t s_power_task = nullptr;
-static i2c_master_bus_handle_t s_i2c_bus = nullptr;
-static esp_io_expander_handle_t s_io_expander = nullptr;
 static power_state_t s_state = POWER_STATE_INIT;
 static char s_last_event[64] = "INIT";
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
@@ -74,50 +67,6 @@ static esp_err_t power_init_input_gpio(void)
     cfg.pull_down_en = GPIO_PULLDOWN_DISABLE;
     cfg.intr_type = GPIO_INTR_DISABLE;
     ESP_RETURN_ON_ERROR(gpio_config(&cfg), TAG, "gpio_config failed");
-    return ESP_OK;
-}
-
-static esp_err_t power_init_i2c_bus(void)
-{
-    if (s_i2c_bus != nullptr) {
-        return ESP_OK;
-    }
-
-    esp_err_t err = i2c_master_get_bus_handle(kPowerI2cPort, &s_i2c_bus);
-    if (err == ESP_OK && s_i2c_bus != nullptr) {
-        ESP_LOGI(TAG, "reuse I2C bus %d for power", static_cast<int>(kPowerI2cPort));
-        return ESP_OK;
-    }
-
-    i2c_master_bus_config_t bus_cfg = {};
-    bus_cfg.clk_source = I2C_CLK_SRC_DEFAULT;
-    bus_cfg.i2c_port = kPowerI2cPort;
-    bus_cfg.scl_io_num = kPowerI2cScl;
-    bus_cfg.sda_io_num = kPowerI2cSda;
-    bus_cfg.glitch_ignore_cnt = 7;
-    bus_cfg.flags.enable_internal_pullup = true;
-
-    err = i2c_new_master_bus(&bus_cfg, &s_i2c_bus);
-    if (err == ESP_ERR_INVALID_STATE) {
-        err = i2c_master_get_bus_handle(kPowerI2cPort, &s_i2c_bus);
-    }
-    ESP_RETURN_ON_ERROR(err, TAG, "i2c bus init failed");
-    ESP_LOGI(TAG, "init I2C bus %d for power", static_cast<int>(kPowerI2cPort));
-    return ESP_OK;
-}
-
-static esp_err_t power_init_expander(void)
-{
-    if (s_io_expander != nullptr) {
-        return ESP_OK;
-    }
-    ESP_RETURN_ON_ERROR(esp_io_expander_new_i2c_tca9554(
-                            s_i2c_bus, ESP_IO_EXPANDER_I2C_TCA9554_ADDRESS_000, &s_io_expander),
-                        TAG,
-                        "create TCA9554 failed");
-    ESP_RETURN_ON_ERROR(esp_io_expander_set_dir(s_io_expander, kSysEnPinMask, IO_EXPANDER_OUTPUT),
-                        TAG,
-                        "set SYS_EN direction failed");
     return ESP_OK;
 }
 
@@ -216,8 +165,8 @@ esp_err_t service_power_init(void)
     power_set_event("INIT");
 
     ESP_RETURN_ON_ERROR(power_init_input_gpio(), TAG, "init PWR input failed");
-    ESP_RETURN_ON_ERROR(power_init_i2c_bus(), TAG, "init power I2C failed");
-    ESP_RETURN_ON_ERROR(power_init_expander(), TAG, "init TCA9554 failed");
+    ESP_RETURN_ON_ERROR(bsp_io_expander_init(), TAG, "init IO expander failed");
+    ESP_RETURN_ON_ERROR(bsp_io_expander_set_direction(kSysEnPin, true), TAG, "set SYS_EN direction failed");
     power_set_state(POWER_STATE_HOLD_ON);
     ESP_RETURN_ON_ERROR(service_power_set_hold_enabled(true), TAG, "enable hold failed");
 
@@ -262,16 +211,11 @@ bool service_power_is_pwr_pressed(void)
 
 esp_err_t service_power_set_hold_enabled(bool enable)
 {
-    if (s_io_expander == nullptr) {
-        return ESP_ERR_INVALID_STATE;
-    }
-    ESP_RETURN_ON_ERROR(esp_io_expander_set_level(s_io_expander, kSysEnPinMask, enable ? 1 : 0),
-                        TAG,
-                        "set SYS_EN failed");
+    ESP_RETURN_ON_ERROR(bsp_io_expander_set_output(kSysEnPin, enable), TAG, "set SYS_EN failed");
     portENTER_CRITICAL(&s_lock);
     s_hold_enabled = enable;
     portEXIT_CRITICAL(&s_lock);
-    ESP_LOGI(TAG, "SYS_EN set %s", enable ? "HIGH" : "LOW");
+    ESP_LOGI(TAG, "service_power set EXIO6 SYS_EN %s", enable ? "HIGH" : "LOW");
     power_set_event(enable ? "SYS_EN_HIGH" : "SYS_EN_LOW");
     return ESP_OK;
 }
