@@ -1,931 +1,95 @@
-# ESP32-S3 触屏 AI 语音终端项目方案（SD 卡 + 云端网关版）
+# PROJECT_SPEC.md
+
+# ESP32-S3 触屏 AI 语音终端项目方案与版本步骤
 
 > 适用对象：Codex / AI 编程代理 / 后续开发者  
 > 设备端：Waveshare ESP32-S3-Touch-LCD-3.49  
 > 开发环境：VS Code + ESP-IDF  
 > UI 框架：LVGL  
-> 服务器：2 核 4G 内存 6M 带宽 Linux 服务器（已有其他项目运行）  
-> 当前目标：在不破坏现有设备功能和服务器已有项目的前提下，继续推进 SD 卡外部存储、服务端代理、云端 ASR/LLM/TTS 链路。
+> 服务器：2 核 / 4G / 6M Linux 服务器，已有其他项目运行  
+> 当前路线：设备端 ASR 主链路已跑通，后续进入 ASR 稳定性收尾、LLM 文本代理、TTS 中文语音播放。
 
 ---
 
-## 0. 当前项目状态基线
+## 0. 文档职责
 
-当前项目已经具备以下能力：
+本文件只写 **项目方案、版本路线、详细开发步骤、验收标准、阶段提示词**。  
+所有通用规范、禁止事项、密钥规则、模块边界、安全规则放在 `AGENTS.md`。
 
-1. V0.1：工程骨架、模块组件、基础日志已完成。
-2. V0.2：LCD / Touch / LVGL / Home 页面已完成。
-3. V0.3：App Shell、页面路由、独立页面骨架已完成。
-4. V0.3.1：返回按钮与页面切换花屏问题已基本修复。
-5. V0.4：Wi-Fi STA、IP 获取、SNTP 时间同步、Home/Settings/Debug 状态显示已完成。
-6. V0.4.1 / V0.4.2：UI 状态刷新链路已修复，时间/Wi-Fi 状态已能主动刷新。
-7. V0.4.5：PWR 电池供电控制已通过实机验收。
-8. V0.5：音频 I/O 基础验证已接入，播放测试音已实机通过。
-9. 当前发现风险：V0.5 中音频通路 EXIO7 操作可能破坏 EXIO6 / SYS_EN 电池保持供电，需要先做 TCA9554 共享 IO 修复。
-
----
-
-## 1. 新增总体要求
-
-本阶段开始，项目新增三条硬性要求：
-
-### 1.1 增加 SD 卡作为设备外部存储
-
-设备端应使用 SD 卡作为外部存储，减少内部 Flash、NVS、RAM、PSRAM 压力。
-
-SD 卡主要用于：
-
-1. 运行日志落盘。
-2. 音频临时缓存。
-3. ASR 上传缓存。
-4. 错误快照。
-5. 配置备份。
-6. 后续 OTA 包暂存。
-7. 后续语音对话记录、调试数据、离线资源。
-
-内部 Flash 只保留：
-
-1. 固件本体。
-2. NVS 小型配置。
-3. 必要证书或设备 ID。
-4. 极小量状态数据。
-
-禁止把大块音频、长期日志、调试 dump、TTS 缓存写入内部 Flash。
-
-### 1.2 开始搭建轻量服务器网关
-
-从现在开始，项目不再只规划“设备直连第三方 API”。需要同时建立一套轻量服务器网关，用于后续保护密钥、管理设备、代理 ASR / LLM / TTS。
-
-服务器不是用来本地跑大模型，也不是用来本地跑 ASR/TTS 模型。2 核 4G 6M 的服务器只作为轻量 API 代理和设备管理服务。
-
-服务器职责：
-
-1. 保护豆包 / 火山引擎等云服务 API Key。
-2. 给设备下发临时 Token 或设备配置。
-3. 代理 ASR WebSocket。
-4. 代理 LLM 请求。
-5. 代理 TTS WebSocket。
-6. 管理设备心跳。
-7. 记录设备错误日志。
-8. 管理短上下文。
-9. 后续支持 OTA 元数据。
-
-### 1.3 以后新代码尽可能写完整中文注释
-
-从本版本起，Codex 生成或修改代码时，必须尽可能写清楚中文注释。
-
-要求：
-
-1. 模块头文件要有中文说明。
-2. 关键函数要有中文函数注释。
-3. 状态机分支要有中文解释。
-4. 硬件引脚、EXIO、I2C、I2S、SD 卡挂载点要有中文注释。
-5. 云端 API、鉴权、WebSocket 状态要有中文注释。
-6. 不能用无意义注释堆砌，例如“定义变量”“执行函数”。
-7. 注释应解释“为什么这样做”，而不只是重复代码。
-
----
-
-## 2. 总体产品架构
-
-项目拆成两条主线：
+Codex 开始任何任务前必须先阅读：
 
 ```text
-设备端 ESP32-S3
-  ├── 触屏 UI / LVGL
-  ├── App Shell 页面框架
-  ├── Wi-Fi / Time / Power / Audio / Storage
-  ├── SD 卡外部存储
-  ├── ASR/LLM/TTS 客户端
-  └── 设备协议客户端
-
-服务器端 esp32-ai-gateway
-  ├── 设备注册与心跳
-  ├── 设备配置下发
-  ├── ASR WebSocket 代理
-  ├── LLM 请求代理
-  ├── TTS WebSocket 代理
-  ├── 日志接收
-  ├── Token / API Key 管理
-  └── 后续 OTA 元数据
+PROJECT_SPEC.md
+AGENTS.md
 ```
 
 ---
 
-## 3. 设备端模块结构
+## 1. 当前项目状态
 
-设备端组件应保持如下结构：
-
-```text
-components/
-├── app_config
-├── app_shell
-├── bsp_board
-├── bsp_io_expander        # 推荐新增：统一管理 TCA9554 EXIO6/EXIO7 等共享 IO
-├── service_power
-├── service_network
-├── service_time
-├── service_audio
-├── service_storage        # 新增：SD 卡与文件系统管理
-├── service_ai
-├── service_cloud          # 新增：设备与自建服务器通信
-├── service_log
-└── ui
-```
-
-### 3.1 `bsp_io_expander`
-
-用途：统一管理 TCA9554 扩展 IO，避免不同模块分别写同一颗扩展 IO 导致互相覆盖。
-
-必须管理：
-
-1. EXIO6：SYS_EN，电池供电保持。
-2. EXIO7：扬声器 / 音频通路使能。
-3. 后续可能新增的其他 EXIO 引脚。
-
-必须提供：
-
-```cpp
-bsp_io_expander_init();
-bsp_io_expander_set_output(uint8_t pin, bool level);
-bsp_io_expander_set_direction(uint8_t pin, bool output);
-bsp_io_expander_get_output_shadow();
-bsp_io_expander_get_direction_shadow();
-```
-
-要求：
-
-1. 维护 `output_shadow`。
-2. 维护 `direction_shadow`。
-3. 所有写操作必须读改写或基于 shadow 修改单 bit。
-4. 所有 I2C 写操作必须加 mutex。
-5. `service_power` 不允许直接写 TCA9554 寄存器。
-6. `service_audio` 不允许直接写 TCA9554 寄存器。
-
-### 3.2 `service_storage`
-
-新增 SD 卡与文件系统服务。
-
-职责：
-
-1. 初始化 SD 卡。
-2. 挂载 FATFS 到 `/sdcard`。
-3. 创建标准目录结构。
-4. 提供文件读写接口。
-5. 提供剩余空间查询。
-6. 提供日志轮转。
-7. 提供音频缓存文件管理。
-8. SD 卡缺失时降级运行，不导致系统崩溃。
-
-建议接口：
-
-```cpp
-service_storage_init();
-service_storage_is_mounted();
-service_storage_get_state();
-service_storage_get_state_string();
-service_storage_get_total_kb();
-service_storage_get_free_kb();
-service_storage_ensure_dirs();
-service_storage_write_text_file(const char *path, const char *text);
-service_storage_append_log(const char *tag, const char *line);
-service_storage_open_audio_cache_file(...);
-service_storage_cleanup_temp_files();
-```
-
-建议状态：
+### 1.1 已通过版本
 
 ```text
-STORAGE_STATE_UNINIT
-STORAGE_STATE_MOUNTING
-STORAGE_STATE_MOUNTED
-STORAGE_STATE_NO_CARD
-STORAGE_STATE_FORMAT_REQUIRED
-STORAGE_STATE_ERROR
+V0.1      工程骨架、模块组件、基础日志：PASS
+V0.2      LCD / Touch / LVGL / Home 页面：PASS
+V0.3      App Shell、页面路由、独立页面骨架：PASS
+V0.3.x    返回按钮与页面切换花屏修复：PASS
+V0.4      Wi-Fi STA、IP 获取、SNTP 时间同步：PASS
+V0.4.x    UI 状态刷新链路修复：PASS
+V0.4.5    PWR 电池供电控制：PASS
+V0.5      音频 I/O 基础验证，测试音播放：PASS
+V0.5.2    TCA9554 EXIO6 / EXIO7 共享状态保护：PASS
+V0.5.3    SD 卡外部存储：PASS / 基本正常
+S0.1      服务器只读审计与避让方案：PASS
+S0.2-pre  本地 esp-ai-terminal-server/ 服务端骨架：PASS
+S0.3      服务器最小运行 + 设备注册/心跳接口：PASS
+S0.4      ESP32 真机注册与周期心跳上报：PASS
+S0.5      服务器侧火山 ASR WebSocket smoke test：PASS
+V0.6      ESP32 音频 → 自建服务器 → 火山 ASR → 识别结果返回设备：PASS / 主链路跑通
+V0.6.1    ASR 稳定性收尾，不做中文显示：PASS / 实机验收通过
 ```
 
-### 3.3 SD 卡目录规范
-
-挂载点：
-
-```text
-/sdcard
-```
-
-目录结构：
-
-```text
-/sdcard/
-├── logs/
-│   ├── system_YYYYMMDD.log
-│   ├── audio_YYYYMMDD.log
-│   └── cloud_YYYYMMDD.log
-├── audio/
-│   ├── record_cache/
-│   ├── asr_upload/
-│   ├── tts_cache/
-│   └── debug/
-├── config/
-│   └── device_config_backup.json
-├── ota/
-│   └── packages/
-├── crash/
-│   └── panic_*.txt
-└── tmp/
-```
-
-### 3.4 存储策略
-
-1. 音频 PCM 数据默认不长期保存。
-2. 调试模式下才允许保存录音片段。
-3. ASR 上传失败时，可将短音频片段暂存在 `/sdcard/audio/asr_upload/`。
-4. TTS 音频可短期缓存到 `/sdcard/audio/tts_cache/`，但必须有大小限制。
-5. 日志每天轮转，单文件建议限制 512KB ~ 2MB。
-6. SD 卡剩余空间低于阈值时自动清理 `tmp` 和旧日志。
-7. SD 卡缺失时，设备必须仍能启动，只是禁用外部存储功能。
-8. 禁止频繁向内部 Flash 写大数据。
-
----
-
-## 4. 服务器端总体方案
-
-服务器项目名：
-
-```text
-esp32-ai-gateway
-```
-
-服务器定位：
-
-```text
-轻量 API 网关 + 设备管理 + 云服务代理
-```
-
-不承担：
-
-1. 本地大模型推理。
-2. 本地 ASR 模型推理。
-3. 本地 TTS 模型推理。
-4. 大规模数据库业务。
-5. 高并发公网服务。
-
-### 4.1 技术选型
-
-推荐默认方案：
-
-```text
-Python 3.11+
-FastAPI
-Uvicorn
-WebSocket
-SQLite（早期可选）
-systemd 部署
-Nginx 反向代理（仅在确认不影响现有项目后再接入）
-```
-
-原因：
-
-1. FastAPI 支持 HTTP 与 WebSocket，适合 ASR/TTS 代理。
-2. Python 便于快速接入第三方 API。
-3. systemd 部署对现有服务器侵入较小。
-4. 2 核 4G 服务器足够运行轻量代理服务。
-5. 不在服务器上跑模型，避免资源不足。
-
-如果服务器已有 Docker 统一运维，也可以改为 Docker Compose；但必须先审计现有 Docker 项目，不能覆盖现有网络、容器名、端口和 volume。
-
----
-
-## 5. 服务器避让策略
-
-服务器已有其他项目在运行，因此 Codex 在服务器上做任何部署前，必须先做只读审计。
-
-### 5.1 只读审计命令
-
-Codex 连接服务器后，第一步只能运行只读命令：
-
-```bash
-hostname
-whoami
-pwd
-uname -a
-free -h
-df -h
-ss -lntup
-systemctl --type=service --state=running --no-pager
-docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}\t{{.Status}}'
-docker compose ls 2>/dev/null || true
-nginx -T 2>/dev/null | head -n 80 || true
-ls -la /etc/nginx/sites-enabled 2>/dev/null || true
-ls -la /opt 2>/dev/null || true
-ls -la /var/www 2>/dev/null || true
-crontab -l 2>/dev/null || true
-```
-
-审计完成后，必须生成：
-
-```text
-SERVER_AUDIT.md
-```
-
-内容包括：
-
-1. 当前开放端口。
-2. 当前运行服务。
-3. 当前 Docker 容器。
-4. 是否安装 Nginx。
-5. 是否已有 80/443 站点。
-6. 可用磁盘空间。
-7. 可用内存。
-8. 建议使用端口。
-9. 风险点。
-10. 下一步部署计划。
-
-### 5.2 严禁行为
-
-Codex 禁止：
-
-1. 未审计就安装服务。
-2. 未确认就修改 Nginx 主配置。
-3. 未确认就重启 Nginx。
-4. 未确认就占用 80 / 443。
-5. 未确认就修改防火墙。
-6. 未确认就停止或删除现有 Docker 容器。
-7. 未确认就执行 `apt upgrade`。
-8. 未确认就改 `/var/www` 现有项目。
-9. 未确认就使用已有项目的数据库。
-10. 未确认就清理日志或删除文件。
-
-### 5.3 推荐部署位置
-
-服务器端项目目录：
-
-```text
-/opt/esp32-ai-gateway
-```
-
-运行数据：
-
-```text
-/var/lib/esp32-ai-gateway
-```
-
-日志目录：
-
-```text
-/var/log/esp32-ai-gateway
-```
-
-密钥配置：
-
-```text
-/etc/esp32-ai-gateway/gateway.env
-```
-
-运行用户：
-
-```text
-esp32ai
-```
-
-服务名：
-
-```text
-esp32-ai-gateway.service
-```
-
-### 5.4 端口避让
-
-默认监听：
-
-```text
-127.0.0.1:18080
-```
-
-说明：
-
-1. 默认只绑定本机回环地址，避免直接暴露公网。
-2. 如果需要公网访问，优先通过 Nginx 反向代理。
-3. 如果 18080 被占用，改用 18081 / 18082。
-4. 不直接占用 80 / 443。
-5. 不占用现有项目端口。
-
-### 5.5 Nginx 接入策略
-
-只有在确认服务器已有 Nginx 且允许新增路由时，才添加独立配置文件：
-
-```text
-/etc/nginx/conf.d/esp32-ai-gateway.conf
-```
-
-推荐路径前缀：
-
-```text
-/esp32-ai/
-```
-
-WebSocket 路径：
-
-```text
-/esp32-ai/ws/asr
-/esp32-ai/ws/tts
-```
-
-修改 Nginx 前必须：
-
-1. 备份相关配置。
-2. 使用 `nginx -t` 测试配置。
-3. 只 reload，不 restart。
-4. reload 前汇报风险。
-
----
-
-## 6. 服务器 API 设计
-
-### 6.1 健康检查
-
-```http
-GET /health
-```
-
-返回：
-
-```json
-{
-  "ok": true,
-  "service": "esp32-ai-gateway",
-  "version": "0.1.0"
-}
-```
-
-### 6.2 设备注册
-
-```http
-POST /api/v1/device/register
-```
-
-请求：
-
-```json
-{
-  "device_id": "esp32s3-xxxx",
-  "firmware_version": "0.6.0",
-  "hardware": "ESP32-S3-Touch-LCD-3.49"
-}
-```
-
-返回：
-
-```json
-{
-  "ok": true,
-  "device_token": "temporary-token",
-  "server_time": 1710000000
-}
-```
-
-### 6.3 心跳
-
-```http
-POST /api/v1/device/heartbeat
-```
-
-请求：
-
-```json
-{
-  "device_id": "esp32s3-xxxx",
-  "firmware_version": "0.6.0",
-  "wifi_rssi": -55,
-  "free_heap": 123456,
-  "sd_mounted": true,
-  "audio_state": "READY"
-}
-```
-
-### 6.4 配置下发
-
-```http
-GET /api/v1/device/config?device_id=esp32s3-xxxx
-```
-
-返回：
-
-```json
-{
-  "ok": true,
-  "asr_enabled": true,
-  "llm_enabled": true,
-  "tts_enabled": true,
-  "audio_sample_rate": 16000,
-  "audio_channels": 1,
-  "log_level": "INFO"
-}
-```
-
-### 6.5 ASR WebSocket 代理
-
-```text
-WS /ws/asr?device_id=esp32s3-xxxx&token=xxx
-```
-
-设备发送：
-
-1. `start` JSON 消息。
-2. PCM binary frame。
-3. `stop` JSON 消息。
-
-服务器返回：
-
-1. partial text。
-2. final text。
-3. error。
-
-### 6.6 LLM 代理
-
-```http
-POST /api/v1/chat
-```
-
-### 6.7 TTS WebSocket 代理
-
-```text
-WS /ws/tts?device_id=esp32s3-xxxx&token=xxx
-```
-
----
-
-## 7. 服务器资源限制
-
-2 核 4G 6M 服务器只适合轻量代理。Codex 必须遵守：
-
-1. 不在服务器上运行大模型。
-2. 不在服务器上运行本地 ASR。
-3. 不在服务器上运行本地 TTS。
-4. 单设备音频流优先。
-5. 默认并发设备数限制为 1~3。
-6. ASR/TTS 音频流必须设置超时。
-7. 单连接最大时长限制，例如 60~120 秒。
-8. 日志必须轮转。
-9. 不保存大量音频，除非调试开关开启。
-10. 服务器日志不能打印完整 API Key。
-
----
-
-## 8. 配置与密钥规范
+### 1.2 当前已验证能力
 
 设备端：
 
-```text
-app_config.h                 # 可提交，占位配置
-app_secrets.h                # 不提交，本地真实 Wi-Fi / device token
-app_secrets.h.example        # 可提交，字段示例
-```
+1. ESP32 可通过 Wi-Fi 访问自建 FastAPI 服务器。
+2. 设备注册和周期心跳链路正常。
+3. `service_cloud` 已作为独立组件接入。
+4. AI Voice 页面已支持 Start ASR / Stop ASR。
+5. ESP32 麦克风 PCM 可上传到自建服务器。
+6. AI Voice 页面可显示 ASR 状态、录音状态、发送时长、partial/final 文本。
+7. Stop ASR 后业务状态能正确进入 Waiting Final，并最终进入 Done。
+8. 云端心跳在 ASR 使用后仍能继续运行。
+9. AI Voice 页面临时音频测试入口已清理：Record Test、Stop Record、Play Tone、Stop Play 均已删除。
+10. 底层 `service_audio` 测试接口仍保留，方便后续排障。
+11. 中文 ASR 已可通过串口日志确认，屏幕不显示中文原文。
+12. 收到中文或非 ASCII 文本时，UI 采用英文状态降级显示，避免乱码。
+13. 单次 ASR 最大录音时长限制保留，用于避免无意义上传和费用失控。
 
 服务器端：
 
-```text
-.env.example                 # 可提交
-.env                         # 不提交
-/etc/esp32-ai-gateway/gateway.env  # 服务器真实密钥，不进仓库
-```
-
-必须隐藏：
-
-1. Wi-Fi Password。
-2. 豆包 / 火山 API Key。
-3. device_token。
-4. server admin token。
-5. 数据库密码。
-
----
-
-## 9. 更新后的版本路线
-
-### V0.5.2：TCA9554 共享 IO 状态保护修复
-
-目标：修复 EXIO7 音频使能覆盖 EXIO6 电源保持的问题。
-
-必须完成：
-
-1. 新增或完善 `bsp_io_expander`。
-2. 统一 TCA9554 访问。
-3. EXIO6 / EXIO7 可同时保持 HIGH。
-4. service_power 和 service_audio 不再各自直接写 TCA9554。
-5. 电池供电开机、测试音播放、长按关机全部正常。
-
-### V0.5.3：SD 卡外部存储接入
-
-目标：引入 SD 卡作为外部存储，减轻内部 Flash / RAM 压力。
-
-必须完成：
-
-1. 新增 `service_storage`。
-2. 挂载 SD 卡到 `/sdcard`。
-3. 创建标准目录。
-4. Debug 页面显示 SD 状态、总容量、剩余容量。
-5. service_log 支持日志写入 SD 卡。
-6. 音频调试数据可选写入 SD 卡。
-7. SD 缺失时系统正常启动。
-
-### V0.5.4：配置安全与中文注释规范
-
-目标：清理真实配置，建立中文注释规范。
-
-必须完成：
-
-1. 移除真实 Wi-Fi / API Key。
-2. 增加 `app_secrets.h.example`。
-3. 增加 `.gitignore`。
-4. 关键代码补充中文注释。
-5. README 增加本地配置说明。
-
-### S0.1：服务器只读审计与部署计划
-
-目标：审计已有服务器环境，不做破坏性修改。
-
-必须完成：
-
-1. 执行只读审计命令。
-2. 生成 `SERVER_AUDIT.md`。
-3. 确认端口避让方案。
-4. 确认部署方式：systemd 或 Docker Compose。
-5. 不启动正式服务。
-
-### S0.2：服务器最小骨架
-
-目标：搭建 `esp32-ai-gateway` 最小服务。
-
-必须完成：
-
-1. FastAPI 项目结构。
-2. `/health`。
-3. 配置读取。
-4. 日志目录。
-5. systemd service 或 docker-compose。
-6. 默认绑定 `127.0.0.1:18080`。
-7. 不影响现有项目。
-
-### S0.3：设备注册与心跳
-
-目标：设备可以连服务器注册和上报状态。
-
-必须完成：
-
-1. 服务器实现 `/api/v1/device/register`。
-2. 服务器实现 `/api/v1/device/heartbeat`。
-3. 设备端新增 `service_cloud`。
-4. 设备端可以发送心跳。
-5. Debug 页面显示云连接状态。
-
-### V0.6：ASR 接入（经自建服务器代理）
-
-目标：设备麦克风 PCM → 服务器 ASR WebSocket 代理 → 云端 ASR → 返回识别文字。
-
-必须完成：
-
-1. 设备端不直接保存云端 API Key。
-2. 服务器端保存云端 ASR Key。
-3. 设备端通过 `service_cloud` / `service_ai` 连接服务器 ASR WS。
-4. AI Voice 页面显示识别文本。
-
-### V0.7：LLM 文本对话代理
-
-目标：ASR 文本 → 服务器 LLM 代理 → 豆包回复文本。
-
-### V0.8：TTS 代理与播放
-
-目标：LLM 文本 → 服务器 TTS 代理 → 设备播放音频。
-
-### V0.9：AI 状态机稳定性
-
-目标：统一 ASR / LLM / TTS 状态机、错误恢复、超时、取消。
-
-### V1.0：MVP 演示版
-
-目标：完整闭环可演示。
-
----
-
-## 10. Codex 执行原则
-
-1. 每次只做一个版本。
-2. 先修复 V0.5.2，再做 SD 卡，再做服务器。
-3. 不允许同时改设备端和服务器端的多个复杂功能。
-4. 每次修改后必须 build。
-5. 服务器端每次修改后必须至少能运行 `/health`。
-6. 所有新增代码尽可能写中文注释。
-7. 不提交真实密钥。
-8. 不破坏已有服务器项目。
-9. 不在服务器上运行大模型。
-10. 不把大文件写入 ESP32 内部 Flash。
-
----
-
-## 11. 下一轮建议给 Codex 的任务顺序
-
-### 任务 1：V0.5.2 TCA9554 修复
-
-先修复 EXIO6 / EXIO7 共享状态，保证 PWR 与音频同时正常。
-
-### 任务 2：V0.5.3 SD 卡存储
-
-接入 service_storage，建立 `/sdcard` 目录规范。
-
-### 任务 3：S0.1 服务器审计
-
-只读审计服务器，不部署，不改现有服务。
-
-### 任务 4：S0.2 服务器最小骨架
-
-搭建 FastAPI + `/health` + systemd / Docker Compose。
-
-### 任务 5：S0.3 设备心跳
-
-设备端新增 service_cloud，上报设备状态。
-
-### 任务 6：V0.6 ASR 代理
-
-通过自建服务器转发 ASR。
-
----
-
-## 12. 重要验收标准
-
-### 设备端验收
-
-```text
-[ ] PWR 电池供电保持正常
-[ ] 测试音仍然有声音
-[ ] 录音 Peak 正常变化
-[ ] SD 卡挂载成功
-[ ] SD 缺失时系统不崩溃
-[ ] 日志可写入 SD 卡
-[ ] Home / Settings / Debug 页面正常
-[ ] Wi-Fi / Time 不受影响
-[ ] app_main.cpp 仍然简洁
-```
-
-### 服务器端验收
-
-```text
-[ ] 已生成 SERVER_AUDIT.md
-[ ] 没有占用现有项目端口
-[ ] 没有修改现有项目配置
-[ ] 服务默认监听 127.0.0.1:18080
-[ ] /health 正常返回
-[ ] systemd 或 Docker 配置独立
-[ ] 日志写入 /var/log/esp32-ai-gateway
-[ ] 密钥放在 /etc/esp32-ai-gateway/gateway.env
-[ ] 不在仓库提交真实密钥
-```
-
----
-
-## 13. 中文注释标准
-
-所有后续代码尽量采用中文注释。
-
-推荐格式：
-
-```cpp
-/**
- * @brief 初始化 SD 卡外部存储服务
- *
- * 该函数负责挂载 SD 卡、创建标准目录，并更新存储服务状态。
- * 如果 SD 卡不存在，函数不会导致系统崩溃，而是进入 NO_CARD 状态，
- * 设备仍然可以继续运行，只是禁用日志落盘和音频缓存功能。
- */
-esp_err_t service_storage_init(void);
-```
-
-不推荐：
-
-```cpp
-// 初始化
-// 设置变量
-// 调用函数
-```
-
-注释要解释目的、边界、风险和硬件原因。
-
----
-
-## 14. 参考原则
-
-1. SD 卡适合日志、音频缓存、临时文件和外部资源。
-2. 内部 Flash 写入要克制，避免大容量和高频写入。
-3. TCA9554 是共享 IO 资源，必须统一管理。
-4. 服务器只做轻量代理，不做模型推理。
-5. 服务器已有其他项目，任何部署都必须先审计和避让。
-6. 设备端不长期保存云端 API Key。
-7. 后续 ASR / LLM / TTS 都优先经自建服务器代理。
-
-
----
-
-## 15. S0.4 / S0.5 最新计划补充（2026-05-18）
-
-### 15.1 S0.4 当前结论
-
-当前可以记录为：
-
-```text
-S0.4 PASS：ESP32 → 自建 FastAPI 服务器的注册与周期心跳链路实机通过
-```
-
-已完成：
-
-1. 服务器端已运行到 S0.4。
-2. `/health` 正常。
-3. `/audit/runtime` 正常。
-4. `DEVICE_SHARED_SECRET_CONFIGURED=true`，设备鉴权已启用。
-5. 设备接口已支持 `X-Device-Token`。
-6. ESP32 已能成功联网并获取 IP。
-7. ESP32 已成功调用：
-   - `POST /api/esp-ai-terminal/devices/register`
-   - `POST /api/esp-ai-terminal/devices/heartbeat`
-8. 注册返回 `http_status=200`。
-9. 心跳返回 `http_status=200`。
-10. ESP32 串口确认 `token_configured=yes`，说明设备端和服务器端密钥匹配。
-11. `service_cloud` 已作为独立组件接入。
-12. UI 没有直接调用 HTTP / 云端 API。
-13. HTTP 请求没有阻塞 UI task。
-14. 云端状态通过 Debug 页面只读显示。
-15. `app_main.cpp` 仍只负责模块初始化。
-16. 服务器端仍未接真实 ASR / LLM / TTS。
-17. 没有修改 Carshow、Nginx、Docker、systemd。
-18. 真实 Wi-Fi、服务器地址、设备密钥放在本地 `app_secrets.h` / `.env`，未提交到仓库。
-
-关键实机日志：
-
-```text
-WIFI: IP_EVENT_STA_GOT_IP, ip=192.168.31.6
-CLOUD: POST /api/esp-ai-terminal/devices/register token_configured=yes
-CLOUD: device registered, http_status=200
-CLOUD: POST /api/esp-ai-terminal/devices/heartbeat token_configured=yes
-CLOUD: heartbeat ok, http_status=200
-```
-
-### 15.2 服务器访问方式当前策略
-
-当前如果服务器使用 `0.0.0.0:18080` 并已放行腾讯云安全组，这是临时公网调试方式。
-
-策略：
-
-```text
-短期调试：0.0.0.0:18080 + X-Device-Token + 云安全组临时放行
-正式建议：HTTPS 反向代理 → 127.0.0.1:18080
-```
-
-要求：
-
-1. 不建议长期裸露 `18080`。
-2. 临时公网调试时必须启用 `X-Device-Token`。
-3. 后续正式使用应改为 HTTPS 反向代理或更安全的访问方案。
-4. 不允许未审批就修改 Nginx。
-5. 不允许未审批就修改 UFW。
-6. 不允许未审批就写 systemd。
-7. 不允许未审批就改 Docker。
-8. 不允许影响 Carshow。
-
-### 15.3 当前服务器 API 规范
-
-当前已实现：
-
-```http
-GET  /health
-GET  /version
-GET  /audit/runtime
-
-POST /api/esp-ai-terminal/devices/register
-POST /api/esp-ai-terminal/devices/heartbeat
-GET  /api/esp-ai-terminal/devices/{device_id}/status
-```
-
-设备接口使用请求头：
-
-```http
-X-Device-Token: <DEVICE_SHARED_SECRET>
-```
-
-规则：
-
-1. `/health`、`/version`、`/audit/runtime` 可以不鉴权，但不能泄露密钥。
-2. `/api/esp-ai-terminal/devices/*` 必须支持 `X-Device-Token` 鉴权。
-3. 日志不能打印 token 原文。
-4. `DEVICE_SHARED_SECRET` 是 S0.4 临时共享密钥方案，后续可升级为设备证书、JWT 或短期 token。
-
-### 15.4 S0.5：服务器侧火山 ASR 接入与自测
-
-S0.5 是下一阶段。它只做服务器侧 ASR 配置和自测，不修改 ESP32 固件，不接 LLM，不接 TTS。
-
-S0.5 必须新增或更新服务器 `.env.example`：
+1. FastAPI 服务可运行。
+2. S0.4 设备注册 / 心跳链路已通过。
+3. S0.5 火山 ASR WebSocket smoke test 已通过。
+4. 火山已接收 2 秒 16kHz / 16bit / mono PCM 测试音。
+5. `ASR smoke test finished successfully` 已验证。
+6. 服务器可转发 ESP32 音频到火山 ASR。
+7. 英文内容已经可以被正确识别并返回设备。
+8. 中文内容已经可以被正确识别并返回设备，串口日志可看到完整 UTF-8 文本。
+9. 暂未接 LLM。
+10. 暂未接 TTS。
+
+### 1.3 S0.5 关键结论
+
+当前火山 ASR 正确配置为：
 
 ```env
 ASR_PROVIDER=volcengine
 ASR_WS_URL=wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async
-ASR_API_KEY=
-ASR_RESOURCE_ID=volc.seedasr.sauc.duration
+ASR_APP_KEY=<APP ID>
+ASR_ACCESS_KEY=<Access Token>
+ASR_RESOURCE_ID=volc.bigasr.sauc.duration
 ASR_AUDIO_FORMAT=pcm
 ASR_SAMPLE_RATE=16000
 ASR_BITS=16
@@ -933,178 +97,697 @@ ASR_CHANNELS=1
 ASR_PACKET_MS=200
 ```
 
-S0.5 必须新增：
+重要结论：
 
-```http
-GET /api/esp-ai-terminal/asr/config
-```
+1. 当前使用 `ASR_APP_KEY + ASR_ACCESS_KEY` 鉴权。
+2. 不再使用 `ASR_API_KEY` 单 Key 模式。
+3. 正确资源 ID 为 `volc.bigasr.sauc.duration`。
+4. `volc.seedasr.sauc.duration` 会返回 `requested resource not granted`。
+5. 当前音频格式为 16kHz / 16bit / mono PCM。
+6. 当前分包建议为 200ms。
+7. 后续所有文档和代码不得恢复错误资源 ID 或错误鉴权字段。
 
-返回内容允许包含：
+### 1.4 当前已知现象
 
-1. provider
-2. configured
-3. ws_url
-4. resource_id
-5. audio_format
-6. sample_rate
-7. bits
-8. channels
-9. packet_ms
-10. api_key_configured: true/false
-
-禁止返回：
-
-1. API Key 原文。
-2. Token 原文。
-3. Password 原文。
-
-S0.5 必须新增：
+Stop ASR 后仍可能看到 ESP-IDF WebSocket 组件底层日志：
 
 ```text
-scripts/asr_smoke_test.py
+transport_ws: Error read data(-1)
+websocket_client: Error receive data
 ```
 
-功能要求：
-
-1. 从服务器本地 `.env` 读取 ASR 配置。
-2. 检查 `ASR_API_KEY`、`ASR_WS_URL`、`ASR_RESOURCE_ID`。
-3. 生成 1~2 秒 16kHz / 16bit / mono PCM 测试音或静音。
-4. 通过 WebSocket 连接火山 ASR。
-5. 使用 Header：
-   - `X-Api-Key`
-   - `X-Api-Resource-Id`
-   - `X-Api-Request-Id`
-   - `X-Api-Sequence`
-6. 按 200ms 分包发送音频。
-7. 打印连接状态、返回消息、错误码、`X-Tt-Logid`。
-8. 打印已发送音频秒数和估算计费时长。
-9. 不打印 ASR API Key 原文。
-10. 火山 ASR WebSocket 使用二进制协议，不允许用普通文本 WebSocket 冒充成功。
-
-S0.5 验收标准：
+业务层已经正确识别为正常结束：
 
 ```text
-[ ] /api/esp-ai-terminal/asr/config 返回 configured=true
-[ ] /api/esp-ai-terminal/asr/config 不返回 ASR_API_KEY 原文
-[ ] asr_smoke_test.py 能读取服务器 .env
-[ ] 能连接火山 ASR WebSocket，或返回明确可排查错误
-[ ] 能打印 X-Tt-Logid
-[ ] 能统计发送音频秒数
-[ ] 不修改 ESP32 固件
-[ ] 不影响设备注册与心跳
-[ ] 不影响 Carshow
+AI: ASR websocket closed after stop, treat as normal finalizing
+AI: ASR state -> Done
 ```
 
-### 15.5 火山引擎模型选择
+因此这属于非致命底层日志，不影响功能。
 
-本项目采用模块化云端 API 代理方案：
+### 1.5 中文显示策略变更
+
+当前不再要求设备屏幕正确显示中文内容。
+
+新的目标：
 
 ```text
-ESP32-S3
-  ↓
-自建 FastAPI 服务器
-  ↓
-火山引擎：
-  ASR：Doubao-流式语音识别
-  LLM：火山方舟在线推理（常规）
-  TTS：Doubao-语音合成-2.0
+设备最终能够用中文语音回答。
+屏幕只显示英文状态、ASCII 文本、数字、调试状态。
+中文 ASR / LLM 文本可通过服务器日志或串口确认。
+中文输出由 V0.8 TTS 播放承担。
 ```
 
-ASR 当前选择：
+### 1.6 V0.6.1 实机验收结论
 
 ```text
-产品：豆包语音
-能力：Doubao-流式语音识别
-接口：大模型流式语音识别 API
-推荐地址：wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async
-资源 ID：volc.seedasr.sauc.duration
-音频格式：16kHz / 16bit / mono PCM
-分包建议：200ms
+V0.6.1 PASS：ASR 稳定性收尾实机通过，可以进入 V0.7。
 ```
 
-当前不要选择：
+已确认：
 
-1. Doubao-实时语音交互。
-2. 火山方舟在线推理低延迟版。
-3. TPM 保障包。
-4. 自定义模型部署。
-5. 声音复刻。
-6. ESP32 直连火山引擎 API。
+1. Start ASR 可以正常进入录音上传。
+2. Stop ASR 可以停止 PCM 采集并进入 `Waiting Final`。
+3. 服务器返回 final 文本后，业务状态进入 `Done`。
+4. Stop 后服务器主动关闭 WebSocket 时，ESP-IDF 底层仍可能打印 read error，但业务层会按正常收尾处理。
+5. 中文 ASR 文本可通过串口确认，当前不要求屏幕显示中文原文。
+6. AI Voice 页面不再暴露 Record Test / Stop Record / Play Tone / Stop Play 临时测试按钮。
+7. ASR 会话结束后仍不影响 Cloud heartbeat。
 
-### 15.6 最新紧凑版本路线
+实机日志基线：
 
 ```text
-V0.5.2    TCA9554 共享 IO 状态保护修复：PASS
-V0.5.3    SD 卡外部存储接入：PASS / 基本正常
-S0.1      服务器只读审计与部署计划：PASS
-S0.2-pre  本地 esp-ai-terminal-server/ 服务端骨架：PASS
-S0.3      服务器最小运行 + 注册/心跳接口：PASS
-S0.4      ESP32 真机注册与周期心跳上报：PASS
+AI: ASR partial text: 你好，我叫胡图图，来自翻斗花园
+AI: ASR stop requested
+AUDIO_IN: pcm callback stopped capture by request
+AUDIO_IN: pcm capture stopped
+AI: ASR state -> Waiting Final
+AI: ASR final text: 你好，我叫胡图图，来自翻斗花园。
+AI: ASR websocket closed after stop, treat as normal finalizing
+AI: ASR websocket disconnected
+AI: ASR state -> Done
+AI: ASR session ended, sent_seconds=7.28
+```
 
-S0.5      服务器侧火山 ASR 配置、接口与 smoke test
-V0.6      ESP32 音频 → 服务器 → 火山 ASR → 屏幕显示识别文字
+当前保留的已知现象：
+
+1. Stop 后可能出现 `transport_ws: Error read data(-1)` / `websocket_client: Error receive data`。
+2. 该日志来自服务器正常 FIN 关闭后的 ESP-IDF WebSocket 底层读错误，不作为业务失败处理。
+3. 屏幕不显示中文原文，这是当前产品策略，不作为缺陷处理。
+
+---
+
+## 2. 最新紧凑版本路线
+
+```text
+V0.6      ESP32 音频 → 服务器 → 火山 ASR → 识别结果返回设备：PASS
+V0.6.1    ASR 稳定性收尾，不做中文显示：PASS
 V0.7      LLM 文本对话代理
-V0.8      TTS 代理与设备播放
+V0.8      TTS 中文语音播放
 V0.9      AI Voice 状态机稳定性
 V1.0      MVP 演示版
 ```
 
-### 15.7 给 Codex 的 S0.5 提示词
+路线说明：
+
+1. V0.6 已经跑通主链路。
+2. V0.6.1 已完成稳定性收尾，不做中文字库。
+3. 当前下一步是 V0.7：接入 LLM，只要求服务器和设备内部拿到回复文本，不要求屏幕显示中文。
+4. V0.8 接入 TTS，重点验收设备能播放中文语音。
+5. V0.9 做完整 AI Voice 状态机和异常恢复。
+6. V1.0 做完整演示闭环。
+
+---
+
+## 3. V0.6.1：ASR 稳定性收尾
+
+### 3.1 目标
+
+V0.6.1 是小版本，只整理 ASR 主链路稳定性。
+
+目标：
+
+1. 稳定 Start ASR / Stop ASR / Done / Error 状态流转。
+2. 保留 V0.6 已跑通的音频上传和 ASR 返回能力。
+3. 保留业务层对 WebSocket 正常关闭的判断。
+4. 加强最大录音时长、发送时长统计、重复点击保护。
+5. 清理 UI 状态显示。
+6. 不引入中文字库。
+7. 不要求屏幕显示中文。
+8. 不接 LLM。
+9. 不接 TTS。
+
+### 3.2 本轮允许做
+
+设备端：
+
+1. 修改 `service_ai` 状态机。
+2. 修改 `service_cloud` ASR WebSocket 相关状态。
+3. 修改 AI Voice 页面状态显示。
+4. 修改 Debug 页面只读状态显示。
+5. 修复 Start / Stop 重复点击。
+6. 增加或完善 ASR sent seconds 统计。
+7. 增加或完善最大录音时长限制。
+8. 优化非致命 WebSocket 关闭日志。
+
+服务器端：
+
+1. 原则上不修改服务器 ASR 协议。
+2. 可以只补充文档或日志说明。
+3. 不修改已通过的 ASR 鉴权和资源 ID。
+
+### 3.3 本轮禁止做
+
+1. 不做中文字库。
+2. 不做屏幕中文显示。
+3. 不接 LLM。
+4. 不接 TTS。
+5. 不修改火山 ASR 已通过配置。
+6. 不恢复 `ASR_API_KEY` 单 Key 模式。
+7. 不恢复 `volc.seedasr.sauc.duration`。
+8. 不修改 Nginx / UFW / Docker / systemd / Carshow。
+9. 不提交真实密钥。
+10. 不恢复 AI Voice 页面临时音频测试按钮。
+
+### 3.4 状态机要求
+
+建议状态：
 
 ```text
-当前进入 S0.5：服务器侧火山 ASR 接入与自测。
+AI_ASR_STATE_IDLE
+AI_ASR_STATE_CONNECTING
+AI_ASR_STATE_RECORDING
+AI_ASR_STATE_WAITING_FINAL
+AI_ASR_STATE_DONE
+AI_ASR_STATE_ERROR
+```
+
+状态流转要求：
+
+1. 用户点击 Start ASR 后才进入 `CONNECTING`。
+2. WebSocket 连接成功后进入 `RECORDING`。
+3. 用户点击 Stop ASR 后进入 `WAITING_FINAL` 或 `DONE`。
+4. 如果 `stop_requested=true` 后 WebSocket 被服务器主动关闭，不应进入 `ERROR`。
+5. 只有非预期断开、鉴权失败、服务器返回 error、音频采集失败才进入 `ERROR`。
+6. `DONE` 状态下允许再次点击 Start。
+7. Start ASR 期间禁止重复 Start。
+8. Stop ASR 期间重复 Stop 不应导致崩溃。
+9. 单次录音最大时长限制必须保留。
+10. 发送音频秒数要在每次 Start 时清零。
+
+### 3.5 AI Voice 页面要求
+
+AI Voice 页面保留：
+
+```text
+Start ASR
+Stop ASR
+ASR State
+Recording
+Sent Seconds
+Partial Text / Text Received 状态
+Final Text / Final Received 状态
+Last Error
+```
+
+不恢复：
+
+```text
+Record Test
+Stop Record
+Play Tone
+Stop Play
+```
+
+中文处理：
+
+1. 如果收到中文 ASR 文本，页面不要求显示中文。
+2. 可以显示 `Chinese text received`。
+3. 串口和服务器日志可保留完整中文。
+4. 不引入中文字体。
+
+### 3.6 验收标准
+
+```text
+[ ] 设备启动正常
+[ ] Wi-Fi / Time 正常
+[ ] Cloud register / heartbeat 正常
+[ ] AI Voice 页面只保留 ASR 正式入口
+[ ] 英文 ASR 仍然可识别
+[ ] 中文 ASR 可通过串口或服务器日志确认
+[ ] 屏幕不要求显示中文
+[ ] Stop ASR 后业务状态进入 Done
+[ ] Done 后可以再次 Start
+[ ] Start / Stop 重复点击不崩溃
+[ ] 单次录音最大时长限制有效
+[ ] 不影响 PWR / Audio / Storage
+[ ] idf.py build 通过
+```
+
+### 3.7 给 Codex 的 V0.6.1 提示词
+
+```text
+当前进入 V0.6.1：ASR 稳定性收尾，不做中文显示。
+
+请先阅读：
+1. PROJECT_SPEC.md
+2. AGENTS.md
 
 当前状态：
-1. S0.4 已通过。
-2. ESP32 可以通过 Wi-Fi 访问自建 FastAPI 服务器。
-3. 设备注册接口返回 200。
-4. 设备心跳接口返回 200。
-5. DEVICE_SHARED_SECRET 已启用。
-6. X-Device-Token 鉴权已通过。
-7. service_cloud 已作为 ESP32 独立组件接入。
-8. 服务器端仍未接真实 ASR / LLM / TTS。
-9. 本轮只做服务器侧火山 ASR 接入与自测。
-10. 本轮不修改 ESP32 固件。
-11. 本轮不接 LLM。
-12. 本轮不接 TTS。
-13. 本轮不修改 Carshow、Nginx、Docker、systemd。
-14. 本轮不把 API Key、Token、密码写入仓库。
-15. 所有新增代码必须尽可能写完整中文注释。
+1. V0.6 主链路已跑通。
+2. ESP32 可通过 Wi-Fi 访问自建 FastAPI 服务器。
+3. 设备注册 / 心跳正常。
+4. 服务器侧火山 ASR smoke test 已通过。
+5. ESP32 麦克风 PCM 可上传到服务器。
+6. 服务器可转发音频到火山 ASR。
+7. 英文 ASR 已可正确识别并返回设备。
+8. AI Voice 页面可显示 ASR 状态、录音状态、发送时长、partial/final 文本。
+9. Stop ASR 后业务状态可正常进入 Done。
+10. 当前已清理 AI Voice 页面临时音频测试入口。
+11. 当前不要求屏幕显示中文。
+12. 中文 ASR 文本可通过服务器日志或串口确认。
+13. 最终中文输出目标放到 V0.8 TTS。
+
+本轮目标：
+1. 稳定 ASR Start / Stop / Done / Error 状态流转。
+2. 保持 V0.6 主链路不被破坏。
+3. 不接 LLM。
+4. 不接 TTS。
+5. 不做中文字库。
+6. 不要求屏幕显示中文。
+7. 不修改服务器 ASR 资源 ID、鉴权方式和 smoke test 已通过的配置。
+8. 不修改 Carshow / Nginx / Docker / systemd / UFW。
+9. 不提交真实 Wi-Fi、服务器地址、DEVICE_SHARED_SECRET、ASR_APP_KEY、ASR_ACCESS_KEY。
 
 请完成：
-1. 更新 .env.example，增加火山 ASR 占位配置。
-2. app/core/config.py 增加 ASR 配置项。
-3. 新增 GET /api/esp-ai-terminal/asr/config。
-4. 新增 scripts/asr_smoke_test.py。
-5. smoke test 使用官方二进制 WebSocket 协议。
-6. 不泄露 ASR_API_KEY。
-7. 文档补充服务器 .env 配置和测试命令。
-8. 不影响设备注册与心跳。
+1. 梳理 AI_ASR_STATE 状态机。
+2. Stop 后服务器主动关闭 WebSocket 时不进入 ERROR。
+3. 只有非预期断开、鉴权失败、服务器 error、音频采集失败才进入 ERROR。
+4. Done 状态下允许再次 Start。
+5. Start 期间禁止重复 Start。
+6. Stop 期间重复 Stop 不崩溃。
+7. 每次 Start 清零 Sent Seconds。
+8. 保留单次最大录音时长限制。
+9. AI Voice 页面只保留 Start ASR / Stop ASR / ASR 状态相关显示。
+10. 如果收到中文文本，UI 可显示 Chinese text received，不引入中文字库。
+11. 串口日志可打印中文 ASR 文本。
+12. 不恢复 Record Test / Stop Record / Play Tone / Stop Play 按钮。
+13. 底层 service_audio 测试接口继续保留。
+
+完成后运行：
+idf.py build
+
+完成后汇报：
+1. 修改了哪些文件。
+2. ASR 状态机是否整理。
+3. Stop 后 WebSocket 底层 error 是否仍存在，是否为非致命。
+4. 是否没有做中文字体。
+5. 是否没有接 LLM / TTS。
+6. 是否没有修改服务器 ASR 已通过配置。
+7. build 是否通过。
+8. 下一步是否可以进入 V0.7。
 ```
 
-### 15.8 V0.6 预告
+---
 
-S0.5 通过后再进入：
+## 4. V0.7：LLM 文本对话代理
+
+### 4.1 目标
+
+V0.7 目标是把 ASR final text 发送到服务器，由服务器调用火山方舟 LLM，返回回复文本。
+
+链路：
 
 ```text
-V0.6：ESP32 音频 → 服务器 → 火山 ASR → 屏幕显示识别文字
+用户语音
+  ↓
+ESP32 录音
+  ↓
+服务器 ASR
+  ↓
+ASR final text
+  ↓
+服务器 LLM 代理
+  ↓
+火山方舟在线推理（常规）
+  ↓
+LLM 回复文本
+  ↓
+ESP32 收到回复状态
 ```
 
-V0.6 前置条件：
+V0.7 不做 TTS，不要求屏幕显示中文回复。
 
-1. S0.5 已通过。
-2. 服务器 ASR 配置 complete。
-3. `asr_smoke_test.py` 能连接火山 ASR 或返回明确可排查错误。
-4. ESP32 `service_audio` 录音链路可输出 16kHz / 16bit / mono PCM。
-5. ESP32 `service_cloud` 已能访问服务器。
-6. ESP32 不保存火山 API Key。
+### 4.2 服务器端目标
 
-V0.6 目标：
+新增接口：
 
-1. 服务器新增设备侧 ASR 上传接口或 WebSocket。
-2. ESP32 AI Voice 页面 Start ASR 按钮触发录音与上传。
-3. 服务器代理火山 ASR。
-4. 返回 partial / final text。
-5. AI Voice 页面显示识别文本。
-6. 限制最长录音时长，避免持续计费。
-7. 静音或停止按钮后结束 ASR。
+```http
+POST /api/esp-ai-terminal/chat
+```
+
+请求示例：
+
+```json
+{
+  "device_id": "esp32s3-dev-001",
+  "text": "今天天气怎么样",
+  "conversation_id": "default",
+  "turn_id": "uuid"
+}
+```
+
+返回示例：
+
+```json
+{
+  "status": "ok",
+  "reply_text": "我现在还不能直接查询实时天气，但我可以帮你分析天气查询功能应该怎么接入。",
+  "conversation_id": "default",
+  "turn_id": "uuid"
+}
+```
+
+服务器要求：
+
+1. 使用火山方舟在线推理（常规）。
+2. 使用 `ARK_API_KEY`、`ARK_BASE_URL`、`LLM_MODEL`。
+3. `LLM_MODEL` 填推理接入点 ID。
+4. 不在服务器本地跑 LLM。
+5. 不打印 `ARK_API_KEY`。
+6. `/audit/runtime` 只显示 `ark_api_key_configured: true/false`。
+7. 如果 LLM 配置缺失，返回 `Config Missing`，不崩溃。
+8. 每次请求设置超时。
+9. 限制输入文本长度。
+10. 限制输出 token 数。
+11. 后续对话上下文先做最小内存实现，不接数据库。
+12. 服务器日志可以记录脱敏后的对话状态，不要记录密钥。
+
+### 4.3 设备端目标
+
+推荐模式 A：ASR 完成后手动触发 Chat。
+
+1. AI Voice 页面显示 ASR Done。
+2. 增加或保留一个 `Send to AI` / `Ask AI` 按钮。
+3. 点击后将 ASR final text 发送到服务器 `/chat`。
+4. 收到回复后 UI 显示 `Response received` 或 `Reply ready`。
+5. 不要求屏幕显示中文回复。
+
+可选模式 B：ASR final 后自动 Chat。
+
+1. ASR final text 收到后自动调用 `/chat`。
+2. 适合演示，但不利于调试。
+3. 如果采用自动模式，必须能在配置中关闭。
+
+建议优先采用模式 A。
+
+### 4.4 屏幕显示要求
+
+AI Voice 页面显示：
+
+```text
+ASR State
+LLM State
+Last ASR Text: English or text received
+Reply State: Response received / Reply ready / Error
+Last Error
+```
+
+中文处理：
+
+1. 中文回复不要求显示在屏幕上。
+2. 可以显示 `Chinese reply ready`。
+3. 完整中文回复可以在串口或服务器日志中确认。
+4. V0.8 负责把中文回复播放出来。
+
+### 4.5 V0.7 验收标准
+
+```text
+[ ] S0.4 register / heartbeat 仍正常
+[ ] V0.6 ASR 仍正常
+[ ] 服务器 /api/esp-ai-terminal/chat 可用
+[ ] LLM 配置缺失时返回 Config Missing
+[ ] LLM 配置完成后可以返回文本回复
+[ ] 不泄露 ARK_API_KEY
+[ ] 设备端可以把 ASR final text 发送到 /chat
+[ ] 设备端能收到回复状态
+[ ] 屏幕不要求显示中文回复
+[ ] 不接 TTS
+[ ] 不影响 PWR / Audio / Storage / Time / Wi-Fi
+[ ] idf.py build 通过
+```
+
+### 4.6 给 Codex 的 V0.7 提示词
+
+```text
+当前进入 V0.7：LLM 文本对话代理。
+
+请先阅读：
+1. PROJECT_SPEC.md
+2. AGENTS.md
+
+当前状态：
+1. V0.6 主链路已跑通。
+2. V0.6.1 已完成或至少 ASR 主链路稳定。
+3. ESP32 可以录音并通过服务器获得 ASR final text。
+4. 服务器火山 ASR 使用 ASR_APP_KEY + ASR_ACCESS_KEY。
+5. ASR_RESOURCE_ID=volc.bigasr.sauc.duration。
+6. 本轮接入 LLM 文本对话代理。
+7. 本轮不接 TTS。
+8. 本轮不要求屏幕显示中文。
+9. 中文回复最终通过 V0.8 TTS 播放。
+
+本轮目标：
+1. 服务器新增 /api/esp-ai-terminal/chat。
+2. 服务器接入火山方舟在线推理（常规）。
+3. 设备端可以把 ASR final text 发送到服务器 chat。
+4. 设备端收到回复状态。
+5. 不泄露 ARK_API_KEY。
+6. 不修改 Nginx / UFW / Docker / systemd / Carshow。
+7. 不提交真实密钥。
+
+服务器端请完成：
+1. .env.example 增加：
+   LLM_PROVIDER=volcengine_ark
+   ARK_API_KEY=
+   ARK_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
+   LLM_MODEL=
+   LLM_MAX_INPUT_CHARS=500
+   LLM_MAX_OUTPUT_TOKENS=256
+   LLM_TIMEOUT_SECONDS=20
+2. app/core/config.py 增加 LLM 配置。
+3. 新增 app/api/chat.py。
+4. 新增或完善 app/services/llm_proxy.py。
+5. 实现 POST /api/esp-ai-terminal/chat。
+6. 缺少配置时返回 Config Missing。
+7. 调用失败时返回明确错误。
+8. 日志不打印 ARK_API_KEY。
+9. /audit/runtime 只显示 ark_api_key_configured: true/false。
+
+设备端请完成：
+1. service_ai 增加 LLM 状态。
+2. service_cloud 增加 chat HTTP POST。
+3. AI Voice 页面增加 Ask AI / Send to AI 入口，或明确采用 ASR final 后自动 Chat。
+4. 推荐先采用手动 Ask AI。
+5. 收到 LLM 回复后，屏幕只显示 Response received / Reply ready。
+6. 不要求显示中文回复。
+7. 串口可以打印中文回复用于调试。
+8. 不接 TTS。
+
+完成后运行：
+服务器：python -m compileall app
+设备：idf.py build
+
+完成后汇报：
+1. 服务器端修改了哪些文件。
+2. 设备端修改了哪些文件。
+3. /api/esp-ai-terminal/chat 是否可用。
+4. 是否成功调用火山方舟。
+5. 是否没有泄露 ARK_API_KEY。
+6. 是否没有接 TTS。
+7. 是否没有要求屏幕显示中文。
+8. build 是否通过。
+9. 下一步是否可以进入 V0.8。
+```
+
+---
+
+## 5. V0.8：TTS 中文语音播放
+
+### 5.1 目标
+
+V0.8 是中文输出能力的核心版本。
+
+目标链路：
+
+```text
+ASR final text
+  ↓
+LLM 中文回复
+  ↓
+服务器 TTS 代理
+  ↓
+火山 TTS / 豆包语音合成 2.0
+  ↓
+返回音频
+  ↓
+ESP32 播放中文语音
+```
+
+本阶段重点不是屏幕显示中文，而是设备可以正确播放中文回复语音。
+
+### 5.2 服务器端目标
+
+新增接口，二选一：
+
+#### 方案 A：HTTP 返回完整音频
+
+```http
+POST /api/esp-ai-terminal/tts
+```
+
+优点：实现简单，适合先跑通。  
+缺点：延迟较高，长回复需要缓存。
+
+#### 方案 B：WebSocket 流式 TTS
+
+```text
+WS /ws/esp-ai-terminal/tts
+```
+
+优点：延迟更低，更接近电话式体验。  
+缺点：状态机复杂，设备播放缓冲更复杂。
+
+建议：
+
+```text
+V0.8 先用 HTTP 完整音频方案跑通。
+V0.8.x 再优化为 WebSocket 流式播放。
+```
+
+### 5.3 设备端目标
+
+1. 设备发送 LLM reply text 或 reply_id 到服务器。
+2. 服务器返回音频。
+3. 设备播放音频。
+4. 音频播放不阻塞 UI task。
+5. TTS 音频可以短期缓存到 SD 卡。
+6. 播放结束后状态进入 Done。
+7. 播放失败进入 Error。
+8. 中文语音播放清晰可辨。
+
+### 5.4 V0.8 验收标准
+
+```text
+[ ] V0.7 LLM 回复正常
+[ ] 服务器 TTS 接口可用
+[ ] 服务器可以调用火山 TTS
+[ ] 服务器不泄露 TTS 密钥
+[ ] ESP32 能接收 TTS 音频
+[ ] ESP32 能播放中文语音
+[ ] 播放期间 UI 不阻塞
+[ ] Stop / Cancel 可中断播放或进入安全状态
+[ ] SD 卡缓存大小受限
+[ ] 屏幕不要求显示中文
+[ ] idf.py build 通过
+```
+
+---
+
+## 6. V0.9：AI Voice 状态机稳定性
+
+目标是把 ASR / LLM / TTS 统一成完整状态机。
+
+建议状态：
+
+```text
+AI_STATE_IDLE
+AI_STATE_LISTENING
+AI_STATE_ASR_CONNECTING
+AI_STATE_ASR_RECORDING
+AI_STATE_ASR_WAITING_FINAL
+AI_STATE_LLM_REQUESTING
+AI_STATE_LLM_DONE
+AI_STATE_TTS_REQUESTING
+AI_STATE_TTS_PLAYING
+AI_STATE_DONE
+AI_STATE_ERROR
+AI_STATE_CANCELING
+```
+
+必须处理：
+
+1. 用户主动取消。
+2. Wi-Fi 断开。
+3. 服务器不可达。
+4. ASR 超时。
+5. LLM 超时。
+6. TTS 超时。
+7. 音频采集失败。
+8. 音频播放失败。
+9. SD 卡不可用。
+10. 设备重启后恢复初始状态。
+11. 多次连续对话。
+12. 页面退出时如何处理正在进行的任务。
+
+---
+
+## 7. V1.0：MVP 演示版
+
+完整演示目标：
+
+```text
+用户点击 AI Voice
+↓
+点击 Start
+↓
+用户用中文说一句话
+↓
+设备录音并上传服务器
+↓
+服务器 ASR 得到中文文本
+↓
+服务器 LLM 生成中文回复
+↓
+服务器 TTS 生成中文音频
+↓
+设备播放中文语音回复
+↓
+Debug 页面可查看状态
+```
+
+V1.0 验收标准：
+
+```text
+[ ] 用户可以用中文提问
+[ ] 设备可以正确录音
+[ ] ASR 可以识别中文
+[ ] LLM 可以生成中文回复
+[ ] TTS 可以播放中文回复
+[ ] 屏幕显示状态正常
+[ ] 不要求屏幕显示中文正文
+[ ] 连续 3 轮对话不崩溃
+[ ] Wi-Fi / Time / Storage / Audio / Power 不受影响
+[ ] 设备密钥不泄露
+[ ] 火山密钥只在服务器端
+[ ] 服务器日志不打印完整密钥
+```
+
+---
+
+## 8. 长期优化方向
+
+V1.0 后再考虑：
+
+1. HTTPS 反向代理替代裸露 18080。
+2. Nginx / Caddy WebSocket 反向代理。
+3. 设备证书或 JWT。
+4. TTS WebSocket 流式播放。
+5. VAD 静音检测。
+6. 对话上下文持久化。
+7. OTA 元数据下发。
+8. Web 管理后台。
+9. 多设备管理。
+10. 端到端 Realtime API 方案评估。
+
+---
+
+## 9. 当前下一步建议
+
+建议下一步执行：
+
+```text
+V0.7：LLM 文本对话代理
+```
+
+当前前置条件：
+
+```text
+V0.6.1 已实机验收通过。
+```
+
+推荐继续保持以下顺序：
+
+```text
+V0.7 → V0.8 → V0.9 → V1.0
+```

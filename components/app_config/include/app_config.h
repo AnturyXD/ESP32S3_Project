@@ -55,7 +55,7 @@ extern "C" {
 #define DEVICE_SHARED_SECRET ""
 #endif
 #ifndef APP_FIRMWARE_VERSION
-#define APP_FIRMWARE_VERSION "V0.6"
+#define APP_FIRMWARE_VERSION "V0.6.1"
 #endif
 #ifndef DEVICE_HARDWARE_NAME
 #define DEVICE_HARDWARE_NAME "ESP32-S3-Touch-LCD-3.49"

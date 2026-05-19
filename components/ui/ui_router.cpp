@@ -60,6 +60,34 @@ static bool ui_router_set_label_text(lv_obj_t *label, const char *text)
     return true;
 }
 
+static bool ui_router_is_ascii_text(const char *text)
+{
+    if (text == nullptr) {
+        return true;
+    }
+    for (const unsigned char *p = reinterpret_cast<const unsigned char *>(text); *p != '\0'; ++p) {
+        if (*p == '\n' || *p == '\r' || *p == '\t') {
+            continue;
+        }
+        if (*p < 0x20 || *p > 0x7E) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static const char *ui_router_screen_text_or_fallback(const char *text)
+{
+    /*
+     * 当前产品策略是不在屏幕上显示中文原文。LVGL 未接入中文字体时直接显示 UTF-8
+     * 会出现乱码或方块，因此 UI 只显示 ASCII；中文/非 ASCII 原文保留在串口和服务器日志。
+     */
+    if (text == nullptr || text[0] == '\0') {
+        return "--";
+    }
+    return ui_router_is_ascii_text(text) ? text : "Non-ASCII text received";
+}
+
 static void ui_router_screen_delete_cb(lv_event_t *event)
 {
     if (lv_event_get_code(event) != LV_EVENT_DELETE) {
@@ -231,10 +259,10 @@ static void ui_router_refresh_status_internal_locked(bool force)
         snprintf(line, sizeof(line), "Sent: %.1fs", static_cast<double>(ai_sent_seconds));
         has_label_change |= ui_router_set_label_text(s_views.ai_asr_sent_label, line);
 
-        snprintf(line, sizeof(line), "Partial: %s", ai_partial_text);
+        snprintf(line, sizeof(line), "Partial: %s", ui_router_screen_text_or_fallback(ai_partial_text));
         has_label_change |= ui_router_set_label_text(s_views.ai_asr_partial_label, line);
 
-        snprintf(line, sizeof(line), "Final: %s", ai_final_text);
+        snprintf(line, sizeof(line), "Final: %s", ui_router_screen_text_or_fallback(ai_final_text));
         has_label_change |= ui_router_set_label_text(s_views.ai_asr_final_label, line);
 
         snprintf(line, sizeof(line), "ASR Error: %s", ai_error_str);

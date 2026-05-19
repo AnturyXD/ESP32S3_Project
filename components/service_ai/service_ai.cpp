@@ -23,6 +23,7 @@ constexpr UBaseType_t kTaskPriority = 5;
 constexpr int kWebsocketTimeoutMs = 8000;
 constexpr uint32_t kAsrPacketMs = AI_ASR_PACKET_MS;
 constexpr uint32_t kAsrMaxSeconds = AI_ASR_MAX_SECONDS;
+constexpr uint32_t kFinalWaitMs = 3500;
 constexpr size_t kAsrPacketBytes = (AUDIO_SAMPLE_RATE * AUDIO_CHANNELS * (AUDIO_BITS / 8) * kAsrPacketMs) / 1000;
 constexpr EventBits_t kWsConnectedBit = BIT0;
 constexpr EventBits_t kWsDisconnectedBit = BIT1;
@@ -185,6 +186,7 @@ static void ai_handle_server_text(const char *text, size_t len)
 
     if (strcmp(type, "partial") == 0) {
         if (ai_extract_json_string(msg, "text", value, sizeof(value))) {
+            ESP_LOGI(TAG, "ASR partial text: %s", value);
             portENTER_CRITICAL(&s_lock);
             snprintf(s_partial_text, sizeof(s_partial_text), "%s", value);
             ai_touch_revision_locked();
@@ -192,6 +194,7 @@ static void ai_handle_server_text(const char *text, size_t len)
         }
     } else if (strcmp(type, "final") == 0) {
         if (ai_extract_json_string(msg, "text", value, sizeof(value)) && value[0] != '\0') {
+            ESP_LOGI(TAG, "ASR final text: %s", value);
             portENTER_CRITICAL(&s_lock);
             snprintf(s_final_text, sizeof(s_final_text), "%s", value);
             ai_touch_revision_locked();
@@ -371,6 +374,29 @@ static void ai_send_stop_message(void)
     (void)esp_websocket_client_send_text(s_ws, stop_json, strlen(stop_json), pdMS_TO_TICKS(kWebsocketTimeoutMs));
 }
 
+static void ai_wait_final_or_close(void)
+{
+    /*
+     * Stop 后不无限等待 final。火山 ASR 经过服务器代理后，服务端可能先返回 final，
+     * 也可能直接正常关闭 WebSocket。V0.6.1 规则是：用户主动 Stop 后，正常 close
+     * 不算业务错误，等待窗口结束后统一收敛到 Done。
+     */
+    const int64_t start_us = esp_timer_get_time();
+    while ((esp_timer_get_time() - start_us) < (kFinalWaitMs * 1000LL)) {
+        portENTER_CRITICAL(&s_lock);
+        const bool has_final = (s_final_text[0] != '\0');
+        const bool has_error = (s_state == AI_ASR_STATE_ERROR);
+        portEXIT_CRITICAL(&s_lock);
+        if (has_final || has_error) {
+            break;
+        }
+        if ((xEventGroupGetBits(s_ws_events) & kWsDisconnectedBit) != 0) {
+            break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+}
+
 static void ai_asr_task(void *arg)
 {
     (void)arg;
@@ -446,7 +472,7 @@ static void ai_asr_task(void *arg)
         while (!ai_stop_requested()) {
             const float elapsed = (esp_timer_get_time() - start_us) / 1000000.0f;
             if (elapsed >= static_cast<float>(kAsrMaxSeconds)) {
-                ESP_LOGW(TAG, "ASR max duration reached: %.1fs", static_cast<double>(elapsed));
+                ESP_LOGW(TAG, "ASR max duration reached, auto stop: %.1fs", static_cast<double>(elapsed));
                 break;
             }
             if ((xEventGroupGetBits(s_ws_events) & (kWsErrorBit | kWsDisconnectedBit)) != 0) {
@@ -462,10 +488,14 @@ static void ai_asr_task(void *arg)
     (void)ai_send_packet_locked();
     ai_set_state(AI_ASR_STATE_WAITING_FINAL);
     ai_send_stop_message();
-    vTaskDelay(pdMS_TO_TICKS(2500));
+    ai_wait_final_or_close();
 
     portENTER_CRITICAL(&s_lock);
     const bool has_error = (s_state == AI_ASR_STATE_ERROR);
+    if (!has_error && s_final_text[0] == '\0') {
+        snprintf(s_final_text, sizeof(s_final_text), "No final text");
+        ai_touch_revision_locked();
+    }
     portEXIT_CRITICAL(&s_lock);
     if (!has_error) {
         ai_set_state(AI_ASR_STATE_DONE);

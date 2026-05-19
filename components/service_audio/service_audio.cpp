@@ -305,7 +305,10 @@ static void audio_record_task(void *arg)
 
     heap_caps_free(capture_buf);
     heap_caps_free(mono_buf);
+
+    bool was_pcm_capture = false;
     portENTER_CRITICAL(&s_lock);
+    was_pcm_capture = (s_pcm_callback != nullptr);
     s_recording = false;
     s_record_stop_req = false;
     s_pcm_callback = nullptr;
@@ -316,8 +319,8 @@ static void audio_record_task(void *arg)
     if (s_state != AUDIO_STATE_ERROR && !s_playing) {
         audio_set_state(AUDIO_STATE_READY);
     }
-    audio_set_event("REC_STOPPED");
-    ESP_LOGI(TAG_IN, "record test stopped");
+    audio_set_event(was_pcm_capture ? "PCM_CAPTURE_STOPPED" : "REC_STOPPED");
+    ESP_LOGI(TAG_IN, "%s", was_pcm_capture ? "pcm capture stopped" : "record test stopped");
     s_record_task = nullptr;
     vTaskDelete(nullptr);
 }
