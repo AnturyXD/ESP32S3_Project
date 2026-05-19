@@ -97,6 +97,9 @@ void ui_page_ai_voice_create(lv_obj_t *screen, ui_page_nav_cb_t nav_cb, ui_page_
         views->ai_asr_sent_label = nullptr;
         views->ai_asr_partial_label = nullptr;
         views->ai_asr_final_label = nullptr;
+        views->ai_llm_state_label = nullptr;
+        views->ai_reply_status_label = nullptr;
+        views->ai_reply_text_label = nullptr;
         views->ai_asr_error_label = nullptr;
     }
 
@@ -115,7 +118,10 @@ void ui_page_ai_voice_create(lv_obj_t *screen, ui_page_nav_cb_t nav_cb, ui_page_
     lv_obj_t *asr_sent = create_status_label(layout.content, "Sent: 0.0s", 90, kTextPrimary);
     lv_obj_t *partial = create_status_label(layout.content, "Partial: --", 112, kTextSecondary);
     lv_obj_t *final_text = create_status_label(layout.content, "Final: --", 158, kTextSecondary);
-    lv_obj_t *asr_error = create_status_label(layout.content, "ASR Error: None", 204, kTextSecondary);
+    lv_obj_t *llm_state = create_status_label(layout.content, "LLM State: --", 204, kTextPrimary);
+    lv_obj_t *reply_status = create_status_label(layout.content, "Reply: --", 226, kTextSecondary);
+    lv_obj_t *reply_text = create_status_label(layout.content, "Reply Text: --", 248, kTextSecondary);
+    lv_obj_t *asr_error = create_status_label(layout.content, "Last Error: None", 294, kTextSecondary);
 
     if (views != nullptr) {
         views->ai_asr_state_label = asr_state;
@@ -124,9 +130,12 @@ void ui_page_ai_voice_create(lv_obj_t *screen, ui_page_nav_cb_t nav_cb, ui_page_
         views->ai_asr_sent_label = asr_sent;
         views->ai_asr_partial_label = partial;
         views->ai_asr_final_label = final_text;
+        views->ai_llm_state_label = llm_state;
+        views->ai_reply_status_label = reply_status;
+        views->ai_reply_text_label = reply_text;
         views->ai_asr_error_label = asr_error;
     }
 
-    create_action_btn(layout.content, "Start ASR", 250, AUDIO_BTN_START_ASR, kAsrBtnColor);
-    create_action_btn(layout.content, "Stop ASR", 290, AUDIO_BTN_STOP_ASR, kAsrBtnColor);
+    create_action_btn(layout.content, "Start ASR", 340, AUDIO_BTN_START_ASR, kAsrBtnColor);
+    create_action_btn(layout.content, "Stop ASR", 380, AUDIO_BTN_STOP_ASR, kAsrBtnColor);
 }

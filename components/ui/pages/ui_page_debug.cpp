@@ -31,6 +31,10 @@ void ui_page_debug_create(lv_obj_t *screen, ui_page_nav_cb_t nav_cb, ui_page_sta
         views->debug_cloud_http_label = nullptr;
         views->debug_cloud_error_label = nullptr;
         views->debug_ai_state_label = nullptr;
+        views->debug_llm_state_label = nullptr;
+        views->debug_chat_http_label = nullptr;
+        views->debug_chat_error_label = nullptr;
+        views->debug_reply_received_label = nullptr;
         views->debug_ai_sent_label = nullptr;
         views->debug_ai_error_label = nullptr;
     }
@@ -223,5 +227,37 @@ void ui_page_debug_create(lv_obj_t *screen, ui_page_nav_cb_t nav_cb, ui_page_sta
     lv_obj_set_style_text_color(ai_error, lv_color_hex(kTextSecondary), 0);
     if (views != nullptr) {
         views->debug_ai_error_label = ai_error;
+    }
+
+    lv_obj_t *llm_state = lv_label_create(layout.content);
+    lv_label_set_text(llm_state, "LLM State: --");
+    lv_obj_align(llm_state, LV_ALIGN_TOP_LEFT, 2, 616);
+    lv_obj_set_style_text_color(llm_state, lv_color_hex(kTextPrimary), 0);
+    if (views != nullptr) {
+        views->debug_llm_state_label = llm_state;
+    }
+
+    lv_obj_t *chat_http = lv_label_create(layout.content);
+    lv_label_set_text(chat_http, "Chat HTTP: 0");
+    lv_obj_align(chat_http, LV_ALIGN_TOP_LEFT, 2, 642);
+    lv_obj_set_style_text_color(chat_http, lv_color_hex(kTextPrimary), 0);
+    if (views != nullptr) {
+        views->debug_chat_http_label = chat_http;
+    }
+
+    lv_obj_t *chat_error = lv_label_create(layout.content);
+    lv_label_set_text(chat_error, "Chat Error: None");
+    lv_obj_align(chat_error, LV_ALIGN_TOP_LEFT, 2, 668);
+    lv_obj_set_style_text_color(chat_error, lv_color_hex(kTextSecondary), 0);
+    if (views != nullptr) {
+        views->debug_chat_error_label = chat_error;
+    }
+
+    lv_obj_t *reply_received = lv_label_create(layout.content);
+    lv_label_set_text(reply_received, "Reply Received: No");
+    lv_obj_align(reply_received, LV_ALIGN_TOP_LEFT, 2, 694);
+    lv_obj_set_style_text_color(reply_received, lv_color_hex(kTextPrimary), 0);
+    if (views != nullptr) {
+        views->debug_reply_received_label = reply_received;
     }
 }

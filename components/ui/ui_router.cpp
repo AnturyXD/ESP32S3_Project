@@ -88,6 +88,14 @@ static const char *ui_router_screen_text_or_fallback(const char *text)
     return ui_router_is_ascii_text(text) ? text : "Non-ASCII text received";
 }
 
+static const char *ui_router_reply_text_or_fallback(const char *text)
+{
+    if (text == nullptr || text[0] == '\0' || strcmp(text, "--") == 0) {
+        return "--";
+    }
+    return ui_router_is_ascii_text(text) ? text : "Non-ASCII response received";
+}
+
 static void ui_router_screen_delete_cb(lv_event_t *event)
 {
     if (lv_event_get_code(event) != LV_EVENT_DELETE) {
@@ -226,6 +234,13 @@ static void ui_router_refresh_status_internal_locked(bool force)
     const char *ai_partial_text = service_ai_get_partial_text();
     const char *ai_final_text = service_ai_get_final_text();
     const char *ai_error_str = service_ai_get_last_error();
+    const char *llm_state_str = service_ai_get_llm_state_string();
+    const char *reply_status_str = service_ai_get_reply_status();
+    const char *reply_text_str = service_ai_get_reply_text();
+    const char *llm_error_str = service_ai_get_llm_error();
+    const int chat_http_status = service_cloud_get_last_chat_http_status();
+    const char *chat_error_str = service_cloud_get_last_chat_error();
+    const bool reply_received = (service_ai_get_llm_state() == AI_LLM_STATE_DONE);
     bool has_label_change = false;
 
     if (s_views.home_time_label != nullptr || s_views.home_wifi_label != nullptr) {
@@ -265,7 +280,16 @@ static void ui_router_refresh_status_internal_locked(bool force)
         snprintf(line, sizeof(line), "Final: %s", ui_router_screen_text_or_fallback(ai_final_text));
         has_label_change |= ui_router_set_label_text(s_views.ai_asr_final_label, line);
 
-        snprintf(line, sizeof(line), "ASR Error: %s", ai_error_str);
+        snprintf(line, sizeof(line), "LLM State: %s", llm_state_str);
+        has_label_change |= ui_router_set_label_text(s_views.ai_llm_state_label, line);
+
+        snprintf(line, sizeof(line), "Reply: %s", reply_status_str);
+        has_label_change |= ui_router_set_label_text(s_views.ai_reply_status_label, line);
+
+        snprintf(line, sizeof(line), "Reply Text: %s", ui_router_reply_text_or_fallback(reply_text_str));
+        has_label_change |= ui_router_set_label_text(s_views.ai_reply_text_label, line);
+
+        snprintf(line, sizeof(line), "Last Error: %s", strcmp(ai_error_str, "None") == 0 ? llm_error_str : ai_error_str);
         has_label_change |= ui_router_set_label_text(s_views.ai_asr_error_label, line);
     }
 
@@ -350,6 +374,18 @@ static void ui_router_refresh_status_internal_locked(bool force)
 
         snprintf(line, sizeof(line), "ASR Error: %s", ai_error_str);
         has_label_change |= ui_router_set_label_text(s_views.debug_ai_error_label, line);
+
+        snprintf(line, sizeof(line), "LLM State: %s", llm_state_str);
+        has_label_change |= ui_router_set_label_text(s_views.debug_llm_state_label, line);
+
+        snprintf(line, sizeof(line), "Chat HTTP: %d", chat_http_status);
+        has_label_change |= ui_router_set_label_text(s_views.debug_chat_http_label, line);
+
+        snprintf(line, sizeof(line), "Chat Error: %s", chat_error_str);
+        has_label_change |= ui_router_set_label_text(s_views.debug_chat_error_label, line);
+
+        snprintf(line, sizeof(line), "Reply Received: %s", reply_received ? "Yes" : "No");
+        has_label_change |= ui_router_set_label_text(s_views.debug_reply_received_label, line);
     }
 
     (void)has_label_change;

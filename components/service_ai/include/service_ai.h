@@ -12,8 +12,8 @@ extern "C" {
 /**
  * @brief V0.6 ASR 状态机。
  *
- * service_ai 只协调“录音 -> 自建服务器 WebSocket -> ASR 文本返回”链路。
- * 它不操作 LVGL，不保存火山密钥，也不接 LLM/TTS。UI 页面只能通过本头文件
+ * service_ai 协调“录音 -> 自建服务器 ASR -> ASR final -> 服务器 Chat”链路。
+ * 它不操作 LVGL，不保存火山密钥，也不接 TTS。UI 页面只能通过本头文件
  * 的只读接口读取状态，并通过 start/stop 触发用户主动的 ASR 测试。
  */
 typedef enum {
@@ -25,6 +25,20 @@ typedef enum {
     AI_ASR_STATE_ERROR,
 } ai_asr_state_t;
 
+/**
+ * @brief V0.7 LLM 文本对话状态。
+ *
+ * service_ai 负责在 ASR final 后协调 service_cloud 发送 Chat 请求。
+ * ESP32 不保存火山方舟 API Key，UI 只能读取状态和回复接收结果。
+ */
+typedef enum {
+    AI_LLM_STATE_IDLE = 0,
+    AI_LLM_STATE_REQUESTING,
+    AI_LLM_STATE_DONE,
+    AI_LLM_STATE_ERROR,
+    AI_LLM_STATE_CONFIG_MISSING,
+} ai_llm_state_t;
+
 esp_err_t service_ai_init(void);
 esp_err_t service_ai_start_asr(void);
 esp_err_t service_ai_stop_asr(void);
@@ -33,6 +47,11 @@ const char *service_ai_get_asr_state_string(void);
 const char *service_ai_get_partial_text(void);
 const char *service_ai_get_final_text(void);
 const char *service_ai_get_last_error(void);
+ai_llm_state_t service_ai_get_llm_state(void);
+const char *service_ai_get_llm_state_string(void);
+const char *service_ai_get_reply_text(void);
+const char *service_ai_get_reply_status(void);
+const char *service_ai_get_llm_error(void);
 float service_ai_get_asr_sent_seconds(void);
 bool service_ai_is_asr_recording(void);
 uint32_t service_ai_get_revision(void);

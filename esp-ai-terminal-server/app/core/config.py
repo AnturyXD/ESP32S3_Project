@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     )
     llm_model: str = Field(default="", alias="LLM_MODEL")
     llm_api_key: str = Field(default="", alias="LLM_API_KEY")
+    llm_timeout_seconds: int = Field(default=30, alias="LLM_TIMEOUT_SECONDS")
+    llm_max_input_chars: int = Field(default=1000, alias="LLM_MAX_INPUT_CHARS")
+    llm_max_output_tokens: int = Field(default=512, alias="LLM_MAX_OUTPUT_TOKENS")
     tts_provider: str = Field(default="volcengine", alias="TTS_PROVIDER")
     tts_model: str = Field(default="seed-tts-2.0", alias="TTS_MODEL")
     tts_api_key: str = Field(default="", alias="TTS_API_KEY")
@@ -160,6 +163,51 @@ class Settings(BaseSettings):
             "auth_mode": self.asr_auth_mode,
         }
 
+    @property
+    def ark_api_key_configured(self) -> bool:
+        """判断火山方舟 API Key 是否已配置。
+
+        V0.7 的 LLM 代理只允许服务器读取 ARK_API_KEY。对外接口只能返回
+        true/false，不能返回原文或截断片段，避免公网临时调试时泄露密钥。
+        """
+
+        return bool(self.ark_api_key.strip())
+
+    @property
+    def llm_configured(self) -> bool:
+        """判断火山方舟 LLM 调用所需配置是否完整。"""
+
+        return all(
+            [
+                self.llm_provider.strip(),
+                self.ark_api_key_configured,
+                self.ark_base_url.strip(),
+                self.llm_model.strip(),
+                self.llm_timeout_seconds > 0,
+                self.llm_max_input_chars > 0,
+                self.llm_max_output_tokens > 0,
+            ]
+        )
+
+    def llm_public_config_summary(self) -> dict[str, object]:
+        """返回 LLM 非敏感配置摘要。
+
+        该摘要用于 `/api/esp-ai-terminal/llm/config`。模型接入点 ID 在部分团队
+        里也可能被视为内部信息，因此这里只返回 model_configured 布尔值。
+        """
+
+        return {
+            "status": "ok" if self.llm_configured else "Config Missing",
+            "provider": self.llm_provider,
+            "configured": self.llm_configured,
+            "base_url": self.ark_base_url,
+            "model_configured": bool(self.llm_model.strip()),
+            "api_key_configured": self.ark_api_key_configured,
+            "timeout_seconds": self.llm_timeout_seconds,
+            "max_input_chars": self.llm_max_input_chars,
+            "max_output_tokens": self.llm_max_output_tokens,
+        }
+
     def runtime_audit_summary(self) -> dict[str, object]:
         """生成可公开给本地审计接口的运行摘要。
 
@@ -183,6 +231,8 @@ class Settings(BaseSettings):
             "asr_auth_mode": self.asr_auth_mode,
             "asr_configured": self.asr_configured,
             "LLM_API_KEY_CONFIGURED": bool(self.llm_api_key or self.ark_api_key),
+            "ark_api_key_configured": self.ark_api_key_configured,
+            "llm_configured": self.llm_configured,
             "TTS_API_KEY_CONFIGURED": bool(self.tts_api_key),
             "DEVICE_SHARED_SECRET_CONFIGURED": self.device_auth_configured,
             "device_auth_configured": self.device_auth_configured,

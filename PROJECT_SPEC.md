@@ -47,6 +47,7 @@ S0.4      ESP32 真机注册与周期心跳上报：PASS
 S0.5      服务器侧火山 ASR WebSocket smoke test：PASS
 V0.6      ESP32 音频 → 自建服务器 → 火山 ASR → 识别结果返回设备：PASS / 主链路跑通
 V0.6.1    ASR 稳定性收尾，不做中文显示：PASS / 实机验收通过
+V0.7      LLM 文本对话代理：PASS / 实机验收通过
 ```
 
 ### 1.2 当前已验证能力
@@ -77,8 +78,12 @@ V0.6.1    ASR 稳定性收尾，不做中文显示：PASS / 实机验收通过
 6. 服务器可转发 ESP32 音频到火山 ASR。
 7. 英文内容已经可以被正确识别并返回设备。
 8. 中文内容已经可以被正确识别并返回设备，串口日志可看到完整 UTF-8 文本。
-9. 暂未接 LLM。
-10. 暂未接 TTS。
+9. 火山方舟 LLM 文本代理已接入。
+10. ASR final text 已可发送到服务器 Chat 接口。
+11. 服务器可调用火山方舟在线推理并返回中文回复文本。
+12. ESP32 已可收到 `reply_text`，串口可看到完整 UTF-8 中文回复。
+13. 屏幕不显示中文回复原文，继续使用英文状态降级显示。
+14. 暂未接 TTS。
 
 ### 1.3 S0.5 关键结论
 
@@ -175,6 +180,53 @@ AI: ASR session ended, sent_seconds=7.28
 2. 该日志来自服务器正常 FIN 关闭后的 ESP-IDF WebSocket 底层读错误，不作为业务失败处理。
 3. 屏幕不显示中文原文，这是当前产品策略，不作为缺陷处理。
 
+### 1.7 V0.7 实机验收结论
+
+```text
+V0.7 PASS：LLM 文本对话代理实机通过，可以进入 V0.8。
+```
+
+已确认：
+
+1. 服务器端 `POST /api/esp-ai-terminal/chat` 可用。
+2. Chat 接口使用 `X-Device-Token` 鉴权，缺失或错误 token 会返回 `401`。
+3. 服务器端已读取火山方舟 `ARK_API_KEY` 和 `LLM_MODEL`，但不会通过接口返回密钥原文。
+4. 服务器可以调用火山方舟在线推理并返回中文 `reply_text`。
+5. ESP32 在收到 ASR final text 后，可以自动请求服务器 Chat 接口。
+6. ESP32 可以收到中文 LLM 回复文本，并通过串口打印完整 UTF-8 内容。
+7. AI Voice 页面不要求显示中文原文，中文回复在屏幕上降级显示为英文状态。
+8. V0.7 不接 TTS，不播放语音。
+9. ASR 使用后 Cloud heartbeat 仍继续返回 `200 OK`。
+10. 未修改 Carshow / Nginx / Docker / systemd / UFW。
+
+服务器实测日志基线：
+
+```text
+LLM request: device_id=esp32s3-dev-001 provider=volcengine_ark language=zh input_chars=10 max_tokens=512
+LLM reply: device_id=esp32s3-dev-001 text=我是基于ESP32-S3的中文语音助手，能通过语音和你交流互动。
+POST /api/esp-ai-terminal/chat HTTP/1.1" 200 OK
+```
+
+ESP32 实测日志基线：
+
+```text
+AI: ASR final text: 自我介绍。
+AI: ASR state -> Done
+AI: LLM state -> Requesting
+CLOUD: chat request: text_chars=15
+CLOUD: POST /api/esp-ai-terminal/chat token_configured=yes
+CLOUD: chat reply text: 你好，我是ESP32-S3 AI语音终端的中文语音助手。我能通过语音和你互动，帮你处理各种任务，有什么需求随时跟我说吧~
+AI: LLM reply text: 你好，我是ESP32-S3 AI语音终端的中文语音助手。我能通过语音和你互动，帮你处理各种任务，有什么需求随时跟我说吧~
+AI: LLM state -> Done
+CLOUD: heartbeat ok, http_status=200
+```
+
+当前保留的已知现象：
+
+1. Stop ASR 后仍可能出现 ESP-IDF WebSocket 底层 FIN read error。
+2. 这仍是非致命日志，业务层会正常进入 `Done`。
+3. 中文 LLM 回复不在屏幕显示原文，后续由 V0.8 TTS 完成中文输出。
+
 ---
 
 ## 2. 最新紧凑版本路线
@@ -182,7 +234,7 @@ AI: ASR session ended, sent_seconds=7.28
 ```text
 V0.6      ESP32 音频 → 服务器 → 火山 ASR → 识别结果返回设备：PASS
 V0.6.1    ASR 稳定性收尾，不做中文显示：PASS
-V0.7      LLM 文本对话代理
+V0.7      LLM 文本对话代理：PASS
 V0.8      TTS 中文语音播放
 V0.9      AI Voice 状态机稳定性
 V1.0      MVP 演示版
@@ -192,8 +244,8 @@ V1.0      MVP 演示版
 
 1. V0.6 已经跑通主链路。
 2. V0.6.1 已完成稳定性收尾，不做中文字库。
-3. 当前下一步是 V0.7：接入 LLM，只要求服务器和设备内部拿到回复文本，不要求屏幕显示中文。
-4. V0.8 接入 TTS，重点验收设备能播放中文语音。
+3. V0.7 已经接入 LLM，服务器和设备端都能拿到回复文本，不要求屏幕显示中文。
+4. 当前下一步是 V0.8：接入 TTS，重点验收设备能播放中文语音。
 5. V0.9 做完整 AI Voice 状态机和异常恢复。
 6. V1.0 做完整演示闭环。
 
@@ -503,18 +555,18 @@ Last Error
 ### 4.5 V0.7 验收标准
 
 ```text
-[ ] S0.4 register / heartbeat 仍正常
-[ ] V0.6 ASR 仍正常
-[ ] 服务器 /api/esp-ai-terminal/chat 可用
-[ ] LLM 配置缺失时返回 Config Missing
-[ ] LLM 配置完成后可以返回文本回复
-[ ] 不泄露 ARK_API_KEY
-[ ] 设备端可以把 ASR final text 发送到 /chat
-[ ] 设备端能收到回复状态
-[ ] 屏幕不要求显示中文回复
-[ ] 不接 TTS
-[ ] 不影响 PWR / Audio / Storage / Time / Wi-Fi
-[ ] idf.py build 通过
+[x] S0.4 register / heartbeat 仍正常
+[x] V0.6 ASR 仍正常
+[x] 服务器 /api/esp-ai-terminal/chat 可用
+[x] LLM 配置缺失时返回 Config Missing
+[x] LLM 配置完成后可以返回文本回复
+[x] 不泄露 ARK_API_KEY
+[x] 设备端可以把 ASR final text 发送到 /chat
+[x] 设备端能收到回复状态
+[x] 屏幕不要求显示中文回复
+[x] 不接 TTS
+[x] 不影响 PWR / Audio / Storage / Time / Wi-Fi
+[x] idf.py build 通过
 ```
 
 ### 4.6 给 Codex 的 V0.7 提示词
@@ -777,13 +829,13 @@ V1.0 后再考虑：
 建议下一步执行：
 
 ```text
-V0.7：LLM 文本对话代理
+V0.8：TTS 中文语音播放
 ```
 
 当前前置条件：
 
 ```text
-V0.6.1 已实机验收通过。
+V0.7 已实机验收通过。
 ```
 
 推荐继续保持以下顺序：

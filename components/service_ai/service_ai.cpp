@@ -34,12 +34,15 @@ static TaskHandle_t s_asr_task = nullptr;
 static EventGroupHandle_t s_ws_events = nullptr;
 static esp_websocket_client_handle_t s_ws = nullptr;
 static ai_asr_state_t s_state = AI_ASR_STATE_IDLE;
+static ai_llm_state_t s_llm_state = AI_LLM_STATE_IDLE;
 static bool s_stop_requested = false;
 static bool s_recording = false;
 static uint32_t s_revision = 0;
 static uint32_t s_sent_bytes = 0;
 static char s_partial_text[256] = "";
 static char s_final_text[512] = "";
+static char s_reply_text[512] = "";
+static char s_llm_error[160] = "None";
 static char s_last_error[160] = "None";
 static uint8_t s_packet_buffer[kAsrPacketBytes] = {0};
 static size_t s_packet_len = 0;
@@ -59,6 +62,24 @@ static const char *asr_state_to_string(ai_asr_state_t state)
         return "Done";
     case AI_ASR_STATE_ERROR:
         return "Error";
+    default:
+        return "Unknown";
+    }
+}
+
+static const char *llm_state_to_string(ai_llm_state_t state)
+{
+    switch (state) {
+    case AI_LLM_STATE_IDLE:
+        return "Idle";
+    case AI_LLM_STATE_REQUESTING:
+        return "Requesting";
+    case AI_LLM_STATE_DONE:
+        return "Done";
+    case AI_LLM_STATE_ERROR:
+        return "Error";
+    case AI_LLM_STATE_CONFIG_MISSING:
+        return "Config Missing";
     default:
         return "Unknown";
     }
@@ -94,6 +115,31 @@ static void ai_set_error(const char *message)
     ESP_LOGW(TAG, "ASR error: %s", message ? message : "Unknown");
 }
 
+static void ai_set_llm_state(ai_llm_state_t state)
+{
+    bool changed = false;
+    portENTER_CRITICAL(&s_lock);
+    changed = (s_llm_state != state);
+    s_llm_state = state;
+    if (changed) {
+        ai_touch_revision_locked();
+    }
+    portEXIT_CRITICAL(&s_lock);
+    if (changed) {
+        ESP_LOGI(TAG, "LLM state -> %s", llm_state_to_string(state));
+    }
+}
+
+static void ai_set_llm_error(const char *message, ai_llm_state_t state = AI_LLM_STATE_ERROR)
+{
+    portENTER_CRITICAL(&s_lock);
+    s_llm_state = state;
+    snprintf(s_llm_error, sizeof(s_llm_error), "%s", message ? message : "Unknown");
+    ai_touch_revision_locked();
+    portEXIT_CRITICAL(&s_lock);
+    ESP_LOGW(TAG, "LLM error: %s", message ? message : "Unknown");
+}
+
 static bool ai_stop_requested(void)
 {
     portENTER_CRITICAL(&s_lock);
@@ -114,6 +160,9 @@ static void ai_reset_result_locked(void)
 {
     s_partial_text[0] = '\0';
     s_final_text[0] = '\0';
+    s_reply_text[0] = '\0';
+    s_llm_state = AI_LLM_STATE_IDLE;
+    snprintf(s_llm_error, sizeof(s_llm_error), "None");
     snprintf(s_last_error, sizeof(s_last_error), "None");
     s_sent_bytes = 0;
     s_packet_len = 0;
@@ -397,6 +446,53 @@ static void ai_wait_final_or_close(void)
     }
 }
 
+static bool ai_get_final_for_chat(char *out, size_t out_size)
+{
+    if (out == nullptr || out_size == 0) {
+        return false;
+    }
+    portENTER_CRITICAL(&s_lock);
+    snprintf(out, out_size, "%s", s_final_text);
+    portEXIT_CRITICAL(&s_lock);
+    return out[0] != '\0' && strcmp(out, "No final text") != 0;
+}
+
+static void ai_request_llm_if_ready(void)
+{
+    char final_text[512] = {0};
+    char reply_text[512] = {0};
+
+    if (!ai_get_final_for_chat(final_text, sizeof(final_text))) {
+        ESP_LOGI(TAG, "LLM skipped: final text empty");
+        return;
+    }
+
+    /*
+     * V0.7 采用 ASR final 后自动请求 Chat 的最小闭环。HTTP 请求由 service_cloud
+     * 执行，本任务不是 UI task，因此不会阻塞 LVGL；真实 ARK_API_KEY 仍只在服务器端。
+     */
+    ai_set_llm_state(AI_LLM_STATE_REQUESTING);
+    const esp_err_t err = service_cloud_chat_request(final_text, reply_text, sizeof(reply_text));
+    if (err != ESP_OK) {
+        const char *cloud_chat_error = service_cloud_get_last_chat_error();
+        if (cloud_chat_error != nullptr && strstr(cloud_chat_error, "Config Missing") != nullptr) {
+            ai_set_llm_error("LLM Config Missing", AI_LLM_STATE_CONFIG_MISSING);
+        } else {
+            ai_set_llm_error(cloud_chat_error ? cloud_chat_error : "LLM request failed");
+        }
+        return;
+    }
+
+    ESP_LOGI(TAG, "LLM reply text: %s", reply_text);
+    portENTER_CRITICAL(&s_lock);
+    snprintf(s_reply_text, sizeof(s_reply_text), "%s", reply_text);
+    snprintf(s_llm_error, sizeof(s_llm_error), "None");
+    s_llm_state = AI_LLM_STATE_DONE;
+    ai_touch_revision_locked();
+    portEXIT_CRITICAL(&s_lock);
+    ESP_LOGI(TAG, "LLM state -> %s", llm_state_to_string(AI_LLM_STATE_DONE));
+}
+
 static void ai_asr_task(void *arg)
 {
     (void)arg;
@@ -512,6 +608,11 @@ static void ai_asr_task(void *arg)
     }
     esp_websocket_client_destroy(s_ws);
     s_ws = nullptr;
+
+    if (!has_error) {
+        ai_request_llm_if_ready();
+    }
+
     portENTER_CRITICAL(&s_lock);
     s_stop_requested = false;
     ai_touch_revision_locked();
@@ -530,7 +631,7 @@ esp_err_t service_ai_init(void)
             return ESP_ERR_NO_MEM;
         }
     }
-    ESP_LOGI(TAG, "service_ai initialized (V0.6 ASR bridge ready)");
+    ESP_LOGI(TAG, "service_ai initialized (V0.7 ASR + LLM chat bridge ready)");
     return ESP_OK;
 }
 
@@ -620,6 +721,55 @@ const char *service_ai_get_last_error(void)
     static char error[160];
     portENTER_CRITICAL(&s_lock);
     snprintf(error, sizeof(error), "%s", s_last_error);
+    portEXIT_CRITICAL(&s_lock);
+    return error;
+}
+
+ai_llm_state_t service_ai_get_llm_state(void)
+{
+    portENTER_CRITICAL(&s_lock);
+    ai_llm_state_t state = s_llm_state;
+    portEXIT_CRITICAL(&s_lock);
+    return state;
+}
+
+const char *service_ai_get_llm_state_string(void)
+{
+    return llm_state_to_string(service_ai_get_llm_state());
+}
+
+const char *service_ai_get_reply_text(void)
+{
+    static char text[512];
+    portENTER_CRITICAL(&s_lock);
+    snprintf(text, sizeof(text), "%s", s_reply_text[0] ? s_reply_text : "--");
+    portEXIT_CRITICAL(&s_lock);
+    return text;
+}
+
+const char *service_ai_get_reply_status(void)
+{
+    ai_llm_state_t state = service_ai_get_llm_state();
+    switch (state) {
+    case AI_LLM_STATE_DONE:
+        return "Response received";
+    case AI_LLM_STATE_REQUESTING:
+        return "Requesting";
+    case AI_LLM_STATE_CONFIG_MISSING:
+        return "Config Missing";
+    case AI_LLM_STATE_ERROR:
+        return "Error";
+    case AI_LLM_STATE_IDLE:
+    default:
+        return "--";
+    }
+}
+
+const char *service_ai_get_llm_error(void)
+{
+    static char error[160];
+    portENTER_CRITICAL(&s_lock);
+    snprintf(error, sizeof(error), "%s", s_llm_error);
     portEXIT_CRITICAL(&s_lock);
     return error;
 }

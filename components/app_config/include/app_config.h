@@ -55,7 +55,7 @@ extern "C" {
 #define DEVICE_SHARED_SECRET ""
 #endif
 #ifndef APP_FIRMWARE_VERSION
-#define APP_FIRMWARE_VERSION "V0.6.1"
+#define APP_FIRMWARE_VERSION "V0.7"
 #endif
 #ifndef DEVICE_HARDWARE_NAME
 #define DEVICE_HARDWARE_NAME "ESP32-S3-Touch-LCD-3.49"
@@ -67,6 +67,10 @@ extern "C" {
 
 #ifndef CLOUD_ASR_WS_PATH
 #define CLOUD_ASR_WS_PATH "/ws/esp-ai-terminal/asr"
+#endif
+
+#ifndef CLOUD_CHAT_PATH
+#define CLOUD_CHAT_PATH "/api/esp-ai-terminal/chat"
 #endif
 
 #ifndef AI_ASR_MAX_SECONDS

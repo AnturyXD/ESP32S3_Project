@@ -1,8 +1,8 @@
 ﻿# ESP AI Terminal Server
 
-这是 ESP32-S3 触屏 AI 语音终端的轻量服务器网关。当前阶段已完成设备管理、鉴权、心跳验证和服务器侧火山 ASR 自测；V0.6 新增 ESP32 音频经自建服务器转发到火山 ASR 的 WebSocket 通道。
+这是 ESP32-S3 触屏 AI 语音终端的轻量服务器网关。当前阶段已完成设备管理、鉴权、心跳验证、服务器侧火山 ASR 和 V0.6 设备音频 ASR 通道；V0.7 新增火山方舟 LLM 文本对话代理。
 
-当前阶段：V0.6  
+当前阶段：V0.7  
 默认内部端口：`127.0.0.1:18080`  
 临时公网调试端口：`0.0.0.0:18080`，必须手动确认安全组和 UFW
 
@@ -18,7 +18,7 @@
 - 不修改 systemd
 - 不修改 Docker / Docker Compose
 - 不占用 80 / 443
-- V0.6 只允许服务器侧 ASR 自测，不接 LLM / TTS，不接 ESP32 音频上传
+- V0.7 只接 LLM 文本代理，不接 TTS，不返回音频
 - 不在仓库提交 `.env`、API Key、Token、密码
 
 ## 2. 当前接口
@@ -43,6 +43,8 @@ ASR 配置检查接口，不返回任何密钥原文：
 
 ```http
 GET /api/esp-ai-terminal/asr/config
+GET /api/esp-ai-terminal/llm/config
+POST /api/esp-ai-terminal/chat
 ```
 
 如果 `DEVICE_SHARED_SECRET` 为空或仍是 `CHANGE_ME`，开发阶段会临时放行设备接口并打印 warning。正式测试公网访问前必须配置真实共享密钥。
@@ -124,7 +126,7 @@ nano .env
 ```env
 APP_NAME=esp-ai-terminal-server
 APP_VERSION=0.1.0
-APP_STAGE=V0.6
+APP_STAGE=V0.7
 APP_HOST=127.0.0.1
 APP_PORT=18080
 LOG_LEVEL=INFO
@@ -147,6 +149,9 @@ LLM_PROVIDER=volcengine_ark
 ARK_API_KEY=
 ARK_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
 LLM_MODEL=
+LLM_TIMEOUT_SECONDS=30
+LLM_MAX_INPUT_CHARS=1000
+LLM_MAX_OUTPUT_TOKENS=512
 
 TTS_PROVIDER=volcengine
 TTS_MODEL=seed-tts-2.0
@@ -167,6 +172,15 @@ openssl rand -hex 32
 火山 ASR 的 `ASR_API_KEY` 是另一套密钥，只能写入服务器本地 `.env`，不要写入 `.env.example`、README、聊天记录或 Git 仓库。
 
 如果火山控制台给你的流式 ASR 凭证是 App Key / Access Key 形式，可以填写 `ASR_APP_KEY` 和 `ASR_ACCESS_KEY`。smoke test 会优先使用这组官方流式 Header；如果这两个字段为空，才使用 `ASR_API_KEY` 对应的 `X-Api-Key` 模式。
+
+V0.7 如果要启用 LLM，请在服务器本地 `.env` 填写：
+
+```env
+ARK_API_KEY=填写火山方舟 API Key
+LLM_MODEL=填写火山方舟推理接入点 ID
+```
+
+`ARK_API_KEY` 不是设备的 `DEVICE_SHARED_SECRET`，也不是 ASR 的 Access Token。它只允许保存在服务器本地 `.env`，不能写入 ESP32 固件、README、聊天记录或 Git 仓库。
 
 ## 7. 启动方式
 
@@ -243,6 +257,12 @@ ASR 配置检查，确认是否已读取火山 ASR 参数。该接口只返回 K
 curl http://127.0.0.1:18080/api/esp-ai-terminal/asr/config
 ```
 
+LLM 配置检查，确认是否已读取火山方舟参数。该接口只返回 Key 和模型是否配置，不返回 Key 或模型原文：
+
+```bash
+curl http://127.0.0.1:18080/api/esp-ai-terminal/llm/config
+```
+
 无 token 注册请求。如果已配置真实 `DEVICE_SHARED_SECRET`，应返回 `401`：
 
 ```bash
@@ -274,6 +294,15 @@ curl -X POST http://127.0.0.1:18080/api/esp-ai-terminal/devices/heartbeat \
 ```bash
 curl http://127.0.0.1:18080/api/esp-ai-terminal/devices/esp32s3-dev-001/status \
   -H "X-Device-Token: YOUR_DEVICE_SHARED_SECRET"
+```
+
+测试 Chat 接口。把 `YOUR_DEVICE_SHARED_SECRET` 替换为服务器 `.env` 中的设备共享密钥，不要把真实值提交到仓库：
+
+```bash
+curl -X POST http://127.0.0.1:18080/api/esp-ai-terminal/chat \
+  -H "Content-Type: application/json" \
+  -H "X-Device-Token: YOUR_DEVICE_SHARED_SECRET" \
+  -d '{"device_id":"esp32s3-dev-001","text":"请用一句话介绍你自己","source":"manual","language":"zh"}'
 ```
 
 ## 9. ESP32 侧配置
@@ -444,8 +473,8 @@ python scripts/asr_smoke_test.py
 
 1. 不要长期裸露 `0.0.0.0:18080`。
 2. 进入正式公网阶段前，优先做 HTTPS 反向代理。
-3. V0.6 自测通过后，再进入 V0.6：ESP32 音频经自建服务器代理 ASR。
-4. 后续再接 LLM / TTS 代理，真实云端 API Key 只放服务器本地 `.env`。
+3. V0.7 只返回文本回复状态，不返回音频。
+4. V0.8 再接 TTS，真实云端 API Key 仍只放服务器本地 `.env`。
 5. 后续可把设备状态从内存字典迁移到 SQLite。
 
 

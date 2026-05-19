@@ -27,6 +27,7 @@ constexpr TickType_t kRetryDelay = pdMS_TO_TICKS(15000);
 constexpr TickType_t kHeartbeatDelay = pdMS_TO_TICKS(30000);
 constexpr TickType_t kHttpMutexTimeout = pdMS_TO_TICKS(12000);
 constexpr int kHttpTimeoutMs = 6000;
+constexpr int kChatHttpTimeoutMs = 30000;
 
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 static SemaphoreHandle_t s_http_mutex = nullptr;
@@ -34,10 +35,18 @@ static TaskHandle_t s_task_handle = nullptr;
 static cloud_state_t s_state = CLOUD_STATE_UNINIT;
 static bool s_registered = false;
 static int s_last_http_status = 0;
+static int s_last_chat_http_status = 0;
 static uint32_t s_revision = 0;
 static char s_last_event[96] = "uninit";
 static char s_last_error[128] = "None";
+static char s_last_chat_error[128] = "None";
 static char s_last_heartbeat[32] = "--";
+
+typedef struct {
+    char *buffer;
+    size_t buffer_size;
+    size_t len;
+} cloud_response_buffer_t;
 
 static const char *cloud_state_to_string(cloud_state_t state)
 {
@@ -120,6 +129,16 @@ static void cloud_set_http_status(int http_status)
     portEXIT_CRITICAL(&s_lock);
 }
 
+static void cloud_set_chat_error(const char *message, int http_status)
+{
+    portENTER_CRITICAL(&s_lock);
+    s_last_chat_http_status = http_status;
+    snprintf(s_last_chat_error, sizeof(s_last_chat_error), "%s", message ? message : "Unknown");
+    ++s_revision;
+    portEXIT_CRITICAL(&s_lock);
+    ESP_LOGW(TAG, "chat error: %s, http_status=%d", message ? message : "Unknown", http_status);
+}
+
 static bool cloud_config_ready(void)
 {
     return strlen(CLOUD_SERVER_BASE_URL) > 0 && strlen(DEVICE_ID) > 0;
@@ -138,6 +157,33 @@ static void cloud_join_url(const char *path, char *url, size_t url_size)
     } else {
         snprintf(url, url_size, "%s%s", CLOUD_SERVER_BASE_URL, path);
     }
+}
+
+static esp_err_t cloud_http_event_handler(esp_http_client_event_t *event)
+{
+    if (event == nullptr || event->event_id != HTTP_EVENT_ON_DATA || event->user_data == nullptr) {
+        return ESP_OK;
+    }
+    cloud_response_buffer_t *response = static_cast<cloud_response_buffer_t *>(event->user_data);
+    if (response->buffer == nullptr || response->buffer_size == 0 || event->data == nullptr || event->data_len <= 0) {
+        return ESP_OK;
+    }
+
+    /*
+     * HTTP 响应只用于读取服务器返回的 reply_text。缓冲区满时截断而不越界，
+     * 避免服务端异常返回大包导致 ESP32 内存破坏。
+     */
+    if (response->len + 1 >= response->buffer_size) {
+        return ESP_OK;
+    }
+    const size_t remain = response->buffer_size - response->len - 1;
+    const size_t copy_len = (static_cast<size_t>(event->data_len) < remain) ? static_cast<size_t>(event->data_len) : remain;
+    if (copy_len > 0) {
+        memcpy(response->buffer + response->len, event->data, copy_len);
+        response->len += copy_len;
+        response->buffer[response->len] = '\0';
+    }
+    return ESP_OK;
 }
 
 /**
@@ -168,7 +214,44 @@ static void cloud_json_escape(const char *input, char *output, size_t output_siz
     output[out] = '\0';
 }
 
-static esp_err_t cloud_post_json(const char *path, const char *json_body, int *http_status)
+static bool cloud_extract_json_string(const char *json, const char *key, char *out, size_t out_size)
+{
+    if (json == nullptr || key == nullptr || out == nullptr || out_size == 0) {
+        return false;
+    }
+    char pattern[48] = {0};
+    snprintf(pattern, sizeof(pattern), "\"%s\"", key);
+    const char *pos = strstr(json, pattern);
+    if (pos == nullptr) {
+        return false;
+    }
+    pos = strchr(pos + strlen(pattern), ':');
+    if (pos == nullptr) {
+        return false;
+    }
+    pos = strchr(pos, '"');
+    if (pos == nullptr) {
+        return false;
+    }
+    ++pos;
+
+    size_t out_index = 0;
+    while (*pos != '\0' && *pos != '"' && out_index + 1 < out_size) {
+        if (*pos == '\\' && pos[1] != '\0') {
+            ++pos;
+        }
+        out[out_index++] = *pos++;
+    }
+    out[out_index] = '\0';
+    return true;
+}
+
+static esp_err_t cloud_post_json_with_response(const char *path,
+                                               const char *json_body,
+                                               int *http_status,
+                                               char *response_body,
+                                               size_t response_body_size,
+                                               int timeout_ms = kHttpTimeoutMs)
 {
     if (!cloud_config_ready()) {
         cloud_set_state(CLOUD_STATE_CONFIG_MISSING, "cloud config missing");
@@ -182,12 +265,22 @@ static esp_err_t cloud_post_json(const char *path, const char *json_body, int *h
 
     char url[192] = {0};
     cloud_join_url(path, url, sizeof(url));
+    cloud_response_buffer_t response = {
+        .buffer = response_body,
+        .buffer_size = response_body_size,
+        .len = 0,
+    };
+    if (response_body != nullptr && response_body_size > 0) {
+        response_body[0] = '\0';
+    }
 
     esp_http_client_config_t config = {};
     config.url = url;
     config.method = HTTP_METHOD_POST;
-    config.timeout_ms = kHttpTimeoutMs;
+    config.timeout_ms = timeout_ms;
     config.disable_auto_redirect = false;
+    config.event_handler = cloud_http_event_handler;
+    config.user_data = &response;
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (client == nullptr) {
@@ -231,6 +324,11 @@ static esp_err_t cloud_post_json(const char *path, const char *json_body, int *h
     ++s_revision;
     portEXIT_CRITICAL(&s_lock);
     return ESP_OK;
+}
+
+static esp_err_t cloud_post_json(const char *path, const char *json_body, int *http_status)
+{
+    return cloud_post_json_with_response(path, json_body, http_status, nullptr, 0);
 }
 
 static void cloud_update_last_heartbeat(void)
@@ -400,6 +498,72 @@ esp_err_t service_cloud_send_heartbeat(void)
     return ESP_OK;
 }
 
+esp_err_t service_cloud_chat_request(const char *text, char *reply_text, size_t reply_text_size)
+{
+    if (reply_text != nullptr && reply_text_size > 0) {
+        reply_text[0] = '\0';
+    }
+    if (text == nullptr || text[0] == '\0') {
+        cloud_set_chat_error("chat text empty", 0);
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!service_network_is_connected()) {
+        cloud_set_chat_error("chat skipped: no network", 0);
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (!service_cloud_is_registered()) {
+        cloud_set_chat_error("chat skipped: cloud not registered", 0);
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    char device_id[64] = {0};
+    char escaped_text[768] = {0};
+    char json[1024] = {0};
+    char response[1024] = {0};
+
+    cloud_json_escape(DEVICE_ID, device_id, sizeof(device_id));
+    cloud_json_escape(text, escaped_text, sizeof(escaped_text));
+    snprintf(json,
+             sizeof(json),
+             "{\"device_id\":\"%s\",\"text\":\"%s\",\"source\":\"asr\",\"language\":\"auto\"}",
+             device_id,
+             escaped_text);
+
+    ESP_LOGI(TAG, "chat request: text_chars=%u", static_cast<unsigned>(strlen(text)));
+    int status = 0;
+    const esp_err_t err = cloud_post_json_with_response(CLOUD_CHAT_PATH, json, &status, response, sizeof(response), kChatHttpTimeoutMs);
+    portENTER_CRITICAL(&s_lock);
+    s_last_chat_http_status = status;
+    ++s_revision;
+    portEXIT_CRITICAL(&s_lock);
+    if (err != ESP_OK) {
+        cloud_set_chat_error("chat HTTP failed", status);
+        return err;
+    }
+
+    char api_status[32] = {0};
+    char reply[512] = {0};
+    (void)cloud_extract_json_string(response, "status", api_status, sizeof(api_status));
+    if (strcmp(api_status, "Config Missing") == 0) {
+        cloud_set_chat_error("LLM Config Missing", status);
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (!cloud_extract_json_string(response, "reply_text", reply, sizeof(reply)) || reply[0] == '\0') {
+        cloud_set_chat_error("reply missing", status);
+        return ESP_FAIL;
+    }
+
+    if (reply_text != nullptr && reply_text_size > 0) {
+        snprintf(reply_text, reply_text_size, "%s", reply);
+    }
+    portENTER_CRITICAL(&s_lock);
+    snprintf(s_last_chat_error, sizeof(s_last_chat_error), "None");
+    ++s_revision;
+    portEXIT_CRITICAL(&s_lock);
+    ESP_LOGI(TAG, "chat reply text: %s", reply);
+    return ESP_OK;
+}
+
 cloud_state_t service_cloud_get_state(void)
 {
     portENTER_CRITICAL(&s_lock);
@@ -437,6 +601,23 @@ int service_cloud_get_last_http_status(void)
     const int status = s_last_http_status;
     portEXIT_CRITICAL(&s_lock);
     return status;
+}
+
+int service_cloud_get_last_chat_http_status(void)
+{
+    portENTER_CRITICAL(&s_lock);
+    const int status = s_last_chat_http_status;
+    portEXIT_CRITICAL(&s_lock);
+    return status;
+}
+
+const char *service_cloud_get_last_chat_error(void)
+{
+    static char error[128];
+    portENTER_CRITICAL(&s_lock);
+    snprintf(error, sizeof(error), "%s", s_last_chat_error);
+    portEXIT_CRITICAL(&s_lock);
+    return error;
 }
 
 bool service_cloud_is_registered(void)

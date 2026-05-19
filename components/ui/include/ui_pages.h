@@ -22,6 +22,9 @@ typedef struct {
     lv_obj_t *ai_asr_sent_label;
     lv_obj_t *ai_asr_partial_label;
     lv_obj_t *ai_asr_final_label;
+    lv_obj_t *ai_llm_state_label;
+    lv_obj_t *ai_reply_status_label;
+    lv_obj_t *ai_reply_text_label;
     lv_obj_t *ai_asr_error_label;
 
     lv_obj_t *settings_ssid_label;
@@ -50,6 +53,10 @@ typedef struct {
     lv_obj_t *debug_cloud_http_label;
     lv_obj_t *debug_cloud_error_label;
     lv_obj_t *debug_ai_state_label;
+    lv_obj_t *debug_llm_state_label;
+    lv_obj_t *debug_chat_http_label;
+    lv_obj_t *debug_chat_error_label;
+    lv_obj_t *debug_reply_received_label;
     lv_obj_t *debug_ai_sent_label;
     lv_obj_t *debug_ai_error_label;
 } ui_page_status_views_t;
