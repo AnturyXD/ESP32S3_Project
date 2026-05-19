@@ -1,8 +1,8 @@
 ﻿# ESP AI Terminal Server
 
-这是 ESP32-S3 触屏 AI 语音终端的轻量服务器网关。当前阶段已完成设备管理、鉴权和心跳验证，S0.5 只新增服务器侧火山 ASR 配置检查与 smoke test，不接 ESP32 音频上传。
+这是 ESP32-S3 触屏 AI 语音终端的轻量服务器网关。当前阶段已完成设备管理、鉴权、心跳验证和服务器侧火山 ASR 自测；V0.6 新增 ESP32 音频经自建服务器转发到火山 ASR 的 WebSocket 通道。
 
-当前阶段：S0.5  
+当前阶段：V0.6  
 默认内部端口：`127.0.0.1:18080`  
 临时公网调试端口：`0.0.0.0:18080`，必须手动确认安全组和 UFW
 
@@ -18,7 +18,7 @@
 - 不修改 systemd
 - 不修改 Docker / Docker Compose
 - 不占用 80 / 443
-- S0.5 只允许服务器侧 ASR 自测，不接 LLM / TTS，不接 ESP32 音频上传
+- V0.6 只允许服务器侧 ASR 自测，不接 LLM / TTS，不接 ESP32 音频上传
 - 不在仓库提交 `.env`、API Key、Token、密码
 
 ## 2. 当前接口
@@ -124,7 +124,7 @@ nano .env
 ```env
 APP_NAME=esp-ai-terminal-server
 APP_VERSION=0.1.0
-APP_STAGE=S0.5
+APP_STAGE=V0.6
 APP_HOST=127.0.0.1
 APP_PORT=18080
 LOG_LEVEL=INFO
@@ -136,7 +136,7 @@ ASR_WS_URL=wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async
 ASR_API_KEY=
 ASR_APP_KEY=
 ASR_ACCESS_KEY=
-ASR_RESOURCE_ID=volc.seedasr.sauc.duration
+ASR_RESOURCE_ID=volc.bigasr.sauc.duration
 ASR_AUDIO_FORMAT=pcm
 ASR_SAMPLE_RATE=16000
 ASR_BITS=16
@@ -339,9 +339,9 @@ CLOUD: heartbeat ok, http_status=200
 
 结论：设备到服务器的最小安全通信链路已跑通。
 
-## 12. S0.5 火山 ASR 服务器侧自测
+## 12. V0.6 火山 ASR 服务器侧自测
 
-S0.5 只验证服务器能否用本地 `.env` 中的火山 ASR 配置连通云端 ASR。它不会接 ESP32 音频，不会接 LLM，不会接 TTS，也不会修改 Nginx / UFW / systemd / Docker / Carshow。
+V0.6 只验证服务器能否用本地 `.env` 中的火山 ASR 配置连通云端 ASR。它不会接 ESP32 音频，不会接 LLM，不会接 TTS，也不会修改 Nginx / UFW / systemd / Docker / Carshow。
 
 ### 12.1 填写服务器本地 `.env`
 
@@ -357,10 +357,10 @@ nano .env
 ```env
 ASR_PROVIDER=volcengine
 ASR_WS_URL=wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async
-ASR_API_KEY=填写你的火山 ASR API Key
-ASR_APP_KEY=
-ASR_ACCESS_KEY=
-ASR_RESOURCE_ID=volc.seedasr.sauc.duration
+ASR_API_KEY=
+ASR_APP_KEY=填写火山控制台 APP ID
+ASR_ACCESS_KEY=填写火山控制台 Access Token
+ASR_RESOURCE_ID=volc.bigasr.sauc.duration
 ASR_AUDIO_FORMAT=pcm
 ASR_SAMPLE_RATE=16000
 ASR_BITS=16
@@ -368,7 +368,7 @@ ASR_CHANNELS=1
 ASR_PACKET_MS=200
 ```
 
-`ASR_RESOURCE_ID=volc.seedasr.sauc.duration` 表示小时版资源，适合当前单设备开发调试。`.env` 已在 `.gitignore` 中，真实 Key 只应该留在服务器本地。
+`ASR_RESOURCE_ID=volc.bigasr.sauc.duration` 是当前实测通过的流式 ASR 小时版资源 ID，适合当前单设备开发调试。`.env` 已在 `.gitignore` 中，真实 Key 只应该留在服务器本地。
 
 火山流式 ASR 凭证可能有两种形式：
 
@@ -418,7 +418,7 @@ curl http://127.0.0.1:18080/api/esp-ai-terminal/asr/config
 }
 ```
 
-如果 `configured=false`，先检查 `.env` 是否缺少 `ASR_API_KEY`、`ASR_WS_URL` 或 `ASR_RESOURCE_ID`。
+如果 `configured=false`，先检查 `.env` 是否缺少 `ASR_APP_KEY`、`ASR_ACCESS_KEY`、`ASR_WS_URL` 或 `ASR_RESOURCE_ID`。
 
 ### 12.4 运行 ASR smoke test
 
@@ -434,7 +434,7 @@ python scripts/asr_smoke_test.py
 
 - `ASR_API_KEY` 缺失：脚本会显示 `Config Missing`，请只在服务器本地 `.env` 填写。
 - `ASR_APP_KEY / ASR_ACCESS_KEY` 与 `ASR_API_KEY` 混淆：如果 `X-Api-Key` 模式失败，请改用火山流式 ASR 文档对应的 App Key / Access Key。
-- `ASR_RESOURCE_ID` 错误：可能返回鉴权或资源不可用错误，确认是否为 `volc.seedasr.sauc.duration`。
+- `ASR_RESOURCE_ID` 错误：可能返回鉴权或资源不可用错误，确认是否为 `volc.bigasr.sauc.duration`。
 - WebSocket 连接失败：检查服务器出站网络、DNS、火山服务地址和 TLS。
 - 火山鉴权失败：确认 `ASR_API_KEY` 是否属于火山 ASR 服务，且不要把设备的 `DEVICE_SHARED_SECRET` 当成火山 Key。
 - 协议封包错误：查看脚本打印的服务端返回消息和错误码。
@@ -444,6 +444,63 @@ python scripts/asr_smoke_test.py
 
 1. 不要长期裸露 `0.0.0.0:18080`。
 2. 进入正式公网阶段前，优先做 HTTPS 反向代理。
-3. S0.5 自测通过后，再进入 V0.6：ESP32 音频经自建服务器代理 ASR。
+3. V0.6 自测通过后，再进入 V0.6：ESP32 音频经自建服务器代理 ASR。
 4. 后续再接 LLM / TTS 代理，真实云端 API Key 只放服务器本地 `.env`。
 5. 后续可把设备状态从内存字典迁移到 SQLite。
+
+
+## 14. V0.6 设备音频 ASR WebSocket
+
+V0.6 新增设备侧 ASR WebSocket：
+
+```text
+WS /ws/esp-ai-terminal/asr
+```
+
+设备连接时仍使用请求头：
+
+```http
+X-Device-Token: <DEVICE_SHARED_SECRET>
+```
+
+设备消息流程：
+
+1. 先发送 `start` JSON，声明 `device_id`、`16000Hz / 16bit / mono / pcm`。
+2. 再连续发送 binary PCM frame。
+3. 用户点击 Stop ASR 或达到设备端时长限制后，发送 `stop` JSON。
+4. 服务器把 PCM 转发到火山 ASR，并向设备返回 `partial`、`final` 或 `error` JSON。
+
+当前火山 ASR 已确认使用：
+
+```env
+ASR_RESOURCE_ID=volc.bigasr.sauc.duration
+ASR_APP_KEY=你的 APP ID
+ASR_ACCESS_KEY=你的 Access Token
+ASR_API_KEY=
+```
+
+注意：
+
+- ESP32 不保存火山 ASR 密钥。
+- 本轮不接 LLM，不接 TTS，不做完整连续对话。
+- 单次 ASR 会话有时长限制，避免异常持续计费。
+- 如果继续使用 `0.0.0.0:18080`，这仍是临时公网调试方式；正式方案应进入 HTTPS 反向代理阶段。
+
+本地验证服务接口：
+
+```bash
+curl http://127.0.0.1:18080/health
+curl http://127.0.0.1:18080/api/esp-ai-terminal/asr/config
+```
+
+ESP32 实机验证：
+
+1. 确认 Wi-Fi、注册、心跳仍为 200。
+2. 打开 AI Voice 页面。
+3. 点击 Start ASR。
+4. 对麦克风说一句短句。
+5. 页面查看 Partial / Final 文本。
+6. 点击 Stop ASR，确认 Sent 秒数停止增长。
+
+
+

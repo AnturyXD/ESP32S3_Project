@@ -14,14 +14,14 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """服务器运行配置。
 
-    S0.5 默认绑定 127.0.0.1:18080，这是为了避让服务器上的 Carshow
+    V0.6 默认绑定 127.0.0.1:18080，这是为了避让服务器上的 Carshow
     项目和公网入口。后续如果要开放公网，必须先单独审计 UFW、iptables、
     云安全组和反向代理配置。
     """
 
     app_name: str = Field(default="esp-ai-terminal-server", alias="APP_NAME")
     app_version: str = Field(default="0.1.0", alias="APP_VERSION")
-    app_stage: str = Field(default="S0.5", alias="APP_STAGE")
+    app_stage: str = Field(default="V0.6", alias="APP_STAGE")
     app_host: str = Field(default="127.0.0.1", alias="APP_HOST")
     app_port: int = Field(default=18080, alias="APP_PORT")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     asr_app_key: str = Field(default="", alias="ASR_APP_KEY")
     asr_access_key: str = Field(default="", alias="ASR_ACCESS_KEY")
     asr_resource_id: str = Field(
-        default="volc.seedasr.sauc.duration",
+        default="volc.bigasr.sauc.duration",
         alias="ASR_RESOURCE_ID",
     )
     asr_audio_format: str = Field(default="pcm", alias="ASR_AUDIO_FORMAT")
@@ -92,7 +92,7 @@ class Settings(BaseSettings):
 
         火山不同 ASR 接口的鉴权字段可能不同：部分接口使用 `X-Api-Key`，
         大模型流式 ASR 文档常见写法是 `X-Api-App-Key` + `X-Api-Access-Key`。
-        为了让 S0.5 smoke test 更容易排查，两个字段都支持，但都不对外返回原文。
+        为了让 V0.6 smoke test 更容易排查，两个字段都支持，但都不对外返回原文。
         """
 
         return bool(self.asr_app_key.strip()) and bool(self.asr_access_key.strip())
@@ -117,7 +117,7 @@ class Settings(BaseSettings):
     def asr_configured(self) -> bool:
         """判断 ASR 自测所需配置是否完整。
 
-        S0.5 只做服务器侧 smoke test，不接 ESP32 音频上传。这里把 WebSocket
+        V0.6 只做服务器侧 smoke test，不接 ESP32 音频上传。这里把 WebSocket
         地址、Resource ID、音频参数和 Key 都纳入检查，缺任何一项都返回
         Config Missing，避免脚本或接口在半配置状态下崩溃。
         """
@@ -197,3 +197,4 @@ def get_settings() -> Settings:
     """
 
     return Settings()
+

@@ -30,6 +30,9 @@ void ui_page_debug_create(lv_obj_t *screen, ui_page_nav_cb_t nav_cb, ui_page_sta
         views->debug_cloud_heartbeat_label = nullptr;
         views->debug_cloud_http_label = nullptr;
         views->debug_cloud_error_label = nullptr;
+        views->debug_ai_state_label = nullptr;
+        views->debug_ai_sent_label = nullptr;
+        views->debug_ai_error_label = nullptr;
     }
 
     ui_page_layout_t layout = ui_page_create_layout(screen, "Debug", APP_PAGE_DEBUG, nav_cb, lv_color_hex(0x0E141B));
@@ -196,5 +199,29 @@ void ui_page_debug_create(lv_obj_t *screen, ui_page_nav_cb_t nav_cb, ui_page_sta
     lv_obj_set_style_text_color(cloud_error, lv_color_hex(kTextSecondary), 0);
     if (views != nullptr) {
         views->debug_cloud_error_label = cloud_error;
+    }
+
+    lv_obj_t *ai_state = lv_label_create(layout.content);
+    lv_label_set_text(ai_state, "AI State: --");
+    lv_obj_align(ai_state, LV_ALIGN_TOP_LEFT, 2, 538);
+    lv_obj_set_style_text_color(ai_state, lv_color_hex(kTextPrimary), 0);
+    if (views != nullptr) {
+        views->debug_ai_state_label = ai_state;
+    }
+
+    lv_obj_t *ai_sent = lv_label_create(layout.content);
+    lv_label_set_text(ai_sent, "ASR Sent: 0.0s");
+    lv_obj_align(ai_sent, LV_ALIGN_TOP_LEFT, 2, 564);
+    lv_obj_set_style_text_color(ai_sent, lv_color_hex(kTextPrimary), 0);
+    if (views != nullptr) {
+        views->debug_ai_sent_label = ai_sent;
+    }
+
+    lv_obj_t *ai_error = lv_label_create(layout.content);
+    lv_label_set_text(ai_error, "ASR Error: None");
+    lv_obj_align(ai_error, LV_ALIGN_TOP_LEFT, 2, 590);
+    lv_obj_set_style_text_color(ai_error, lv_color_hex(kTextSecondary), 0);
+    if (views != nullptr) {
+        views->debug_ai_error_label = ai_error;
     }
 }

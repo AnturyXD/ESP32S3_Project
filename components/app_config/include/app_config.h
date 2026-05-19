@@ -55,7 +55,7 @@ extern "C" {
 #define DEVICE_SHARED_SECRET ""
 #endif
 #ifndef APP_FIRMWARE_VERSION
-#define APP_FIRMWARE_VERSION "V0.5.3"
+#define APP_FIRMWARE_VERSION "V0.6"
 #endif
 #ifndef DEVICE_HARDWARE_NAME
 #define DEVICE_HARDWARE_NAME "ESP32-S3-Touch-LCD-3.49"
@@ -64,6 +64,18 @@ extern "C" {
 /* 兼容早期占位宏，后续新代码统一使用 CLOUD_SERVER_BASE_URL / DEVICE_ID。 */
 #define SERVER_BASE_URL CLOUD_SERVER_BASE_URL
 #define SERVER_DEVICE_ID DEVICE_ID
+
+#ifndef CLOUD_ASR_WS_PATH
+#define CLOUD_ASR_WS_PATH "/ws/esp-ai-terminal/asr"
+#endif
+
+#ifndef AI_ASR_MAX_SECONDS
+#define AI_ASR_MAX_SECONDS 15
+#endif
+
+#ifndef AI_ASR_PACKET_MS
+#define AI_ASR_PACKET_MS 200
+#endif
 
 #define AUDIO_SAMPLE_RATE 16000
 #define AUDIO_BITS 16

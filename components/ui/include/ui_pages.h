@@ -16,6 +16,13 @@ typedef struct {
     lv_obj_t *ai_audio_state_label;
     lv_obj_t *ai_pcm_bytes_label;
     lv_obj_t *ai_peak_label;
+    lv_obj_t *ai_asr_state_label;
+    lv_obj_t *ai_server_state_label;
+    lv_obj_t *ai_asr_recording_label;
+    lv_obj_t *ai_asr_sent_label;
+    lv_obj_t *ai_asr_partial_label;
+    lv_obj_t *ai_asr_final_label;
+    lv_obj_t *ai_asr_error_label;
 
     lv_obj_t *settings_ssid_label;
     lv_obj_t *settings_wifi_label;
@@ -42,6 +49,9 @@ typedef struct {
     lv_obj_t *debug_cloud_heartbeat_label;
     lv_obj_t *debug_cloud_http_label;
     lv_obj_t *debug_cloud_error_label;
+    lv_obj_t *debug_ai_state_label;
+    lv_obj_t *debug_ai_sent_label;
+    lv_obj_t *debug_ai_error_label;
 } ui_page_status_views_t;
 
 void ui_page_home_create(lv_obj_t *parent, ui_page_nav_cb_t nav_cb, ui_page_status_views_t *views);

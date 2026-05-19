@@ -17,12 +17,11 @@ logger = logging.getLogger(__name__)
 _warned_missing_secret = False
 
 
-def require_device_auth(x_device_token: str | None = Header(default=None)) -> None:
-    """校验设备请求头中的共享密钥。
+def is_device_token_valid(x_device_token: str | None) -> bool:
+    """判断设备 token 是否有效，供 HTTP 依赖和 WebSocket 握手共用。
 
-    开发阶段如果 `DEVICE_SHARED_SECRET` 为空或仍为 `CHANGE_ME`，允许请求通过，
-    但只打印一次 warning，提醒部署者这不是安全生产配置。日志里绝不打印
-    token 原文，避免终端截图或日志文件泄露密钥。
+    WebSocket 不能直接复用普通 HTTP Header 依赖，因此把核心比较逻辑抽出来。
+    如果 DEVICE_SHARED_SECRET 未配置，仍按开发阶段策略临时放行，但只打印一次 warning。
     """
 
     global _warned_missing_secret
@@ -34,11 +33,22 @@ def require_device_auth(x_device_token: str | None = Header(default=None)) -> No
                 "DEVICE_SHARED_SECRET is not configured; device API auth is temporarily bypassed"
             )
             _warned_missing_secret = True
-        return
+        return True
 
     expected = settings.device_shared_secret.strip()
     received = (x_device_token or "").strip()
-    if not received or not secrets.compare_digest(received, expected):
+    return bool(received) and secrets.compare_digest(received, expected)
+
+
+def require_device_auth(x_device_token: str | None = Header(default=None)) -> None:
+    """校验设备请求头中的共享密钥。
+
+    开发阶段如果 `DEVICE_SHARED_SECRET` 为空或仍为 `CHANGE_ME`，允许请求通过，
+    但只打印一次 warning，提醒部署者这不是安全生产配置。日志里绝不打印
+    token 原文，避免终端截图或日志文件泄露密钥。
+    """
+
+    if not is_device_token_valid(x_device_token):
         logger.warning("device auth failed: token missing or mismatch")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

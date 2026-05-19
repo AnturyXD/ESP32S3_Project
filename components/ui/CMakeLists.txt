@@ -1,4 +1,4 @@
-idf_component_register(
+﻿idf_component_register(
     SRCS
         "ui.cpp"
         "ui_router.cpp"
@@ -10,5 +10,6 @@ idf_component_register(
         "pages/ui_page_about.cpp"
         "pages/ui_page_placeholder.cpp"
     INCLUDE_DIRS "include"
-    REQUIRES app_shell bsp_board esp_timer freertos log lvgl service_audio service_cloud service_network service_storage service_time
+    REQUIRES app_shell bsp_board esp_timer freertos log lvgl service_audio service_ai service_cloud service_network service_storage service_time
 )
+

@@ -25,11 +25,11 @@ namespace {
 
 constexpr uint32_t kSampleRate = AUDIO_SAMPLE_RATE;
 constexpr uint16_t kBitsPerSample = AUDIO_BITS;
-// V0.5.1 固化对上层音频格式：16kHz / 16bit / mono PCM
+// V0.5.1 固化对上层输出的音频格式：16kHz / 16bit / mono PCM。
 constexpr uint8_t kRecordOutChannels = 1;
-// ES8311 在该板上的播放通道使用 stereo slot，输出保持双声道槽位
+// ES8311 播放链路使用 stereo slot，输出保持双声道槽位。
 constexpr uint8_t kPlaybackChannels = 2;
-// 底层录音链路允许按 stereo slot 读取，再在 service_audio 内部转 mono 输出给上层
+// 底层录音链路按 stereo slot 读取，再在 service_audio 内部转 mono 输出给上层 ASR。
 constexpr uint8_t kCodecCaptureChannels = 2;
 constexpr uint32_t kRecordFrameMs = 20;
 constexpr uint32_t kRecordOutFrameBytes = (kSampleRate * (kBitsPerSample / 8) * kRecordOutChannels * kRecordFrameMs) / 1000;
@@ -52,6 +52,8 @@ static TaskHandle_t s_record_task = nullptr;
 static TaskHandle_t s_play_task = nullptr;
 static esp_codec_dev_handle_t s_playback = nullptr;
 static esp_codec_dev_handle_t s_record = nullptr;
+static service_audio_pcm_callback_t s_pcm_callback = nullptr;
+static void *s_pcm_callback_ctx = nullptr;
 static audio_state_t s_state = AUDIO_STATE_UNINIT;
 static uint32_t s_last_pcm_bytes = 0;
 static uint16_t s_peak_level = 0;
@@ -137,7 +139,7 @@ static void audio_mark_error(const char *event_text, const char *log_text)
 
 static uint16_t audio_calc_peak(const int16_t *samples, size_t sample_count)
 {
-    // Peak 统计基于 int16_t 有符号 PCM 幅值绝对值
+    // Peak 统计基于 int16_t 有符号 PCM 的绝对幅值。
     uint16_t peak = 0;
     for (size_t i = 0; i < sample_count; ++i) {
         int32_t v = samples[i];
@@ -157,7 +159,7 @@ static void audio_expand_mono_to_stereo(const int16_t *mono, int16_t *stereo, si
         return;
     }
     for (size_t i = 0; i < samples; ++i) {
-        // 上层 mono PCM 在播放前复制到 L/R 双声道槽位
+        // 上层 mono PCM 播放前复制到 L/R 双声道槽位。
         stereo[i * 2] = mono[i];
         stereo[i * 2 + 1] = mono[i];
     }
@@ -204,8 +206,8 @@ static esp_err_t audio_enable_speaker_path(void)
 {
     ESP_RETURN_ON_ERROR(bsp_io_expander_init(), TAG_CODEC, "speaker path: IOX init failed");
 
-    // 中文说明：
-    // EXIO7 连接扬声器通路使能，必须拉高后功放路径才会导通，否则播放链路正常也会“无声”。
+    // EXIO7 连接扬声器通路使能，必须拉高后功放路径才会导通。
+    // 该引脚与 EXIO6/SYS_EN 共用 TCA9554，所以只能通过 bsp_io_expander 共享层写入。
     ESP_RETURN_ON_ERROR(bsp_io_expander_set_direction(kSpeakerEnablePin, true),
                         TAG_CODEC,
                         "speaker path: set EXIO7 direction failed");
@@ -269,6 +271,29 @@ static void audio_record_task(void *arg)
 
         uint16_t peak = audio_calc_peak(mono_buf, mono_samples);
         audio_set_pcm_stats(kRecordOutFrameBytes, peak);
+        service_audio_pcm_callback_t callback = nullptr;
+        void *callback_ctx = nullptr;
+        portENTER_CRITICAL(&s_lock);
+        callback = s_pcm_callback;
+        callback_ctx = s_pcm_callback_ctx;
+        portEXIT_CRITICAL(&s_lock);
+        if (callback != nullptr) {
+            /*
+             * ASR 只接收 service_audio 输出的 16kHz/16bit/mono PCM。
+             * Stop ASR 时，上层会返回 ESP_ERR_INVALID_STATE 通知录音任务退出；
+             * 这是受控停止路径，不应被当成音频硬件错误。
+             */
+            esp_err_t cb_err = callback(mono_buf, kRecordOutFrameBytes, callback_ctx);
+            if (cb_err != ESP_OK) {
+                if (cb_err == ESP_ERR_INVALID_STATE) {
+                    ESP_LOGI(TAG_IN, "pcm callback stopped capture by request");
+                } else {
+                    ESP_LOGW(TAG_IN, "pcm callback stopped capture: %s", esp_err_to_name(cb_err));
+                }
+                audio_set_event("PCM_CB_STOP");
+                break;
+            }
+        }
         ++loop_count;
         if ((loop_count % 25) == 0) {
             ESP_LOGI(TAG_IN,
@@ -283,6 +308,8 @@ static void audio_record_task(void *arg)
     portENTER_CRITICAL(&s_lock);
     s_recording = false;
     s_record_stop_req = false;
+    s_pcm_callback = nullptr;
+    s_pcm_callback_ctx = nullptr;
     audio_touch_revision_locked();
     portEXIT_CRITICAL(&s_lock);
 
@@ -447,6 +474,8 @@ esp_err_t service_audio_start_record_test(void)
     portENTER_CRITICAL(&s_lock);
     s_record_stop_req = false;
     s_recording = true;
+    s_pcm_callback = nullptr;
+    s_pcm_callback_ctx = nullptr;
     audio_touch_revision_locked();
     portEXIT_CRITICAL(&s_lock);
     audio_set_state(AUDIO_STATE_RECORDING);
@@ -458,6 +487,45 @@ esp_err_t service_audio_start_record_test(void)
         audio_touch_revision_locked();
         portEXIT_CRITICAL(&s_lock);
         audio_mark_error("REC_TASK_FAIL", "create record task failed");
+        return ESP_FAIL;
+    }
+    return ESP_OK;
+}
+
+esp_err_t service_audio_start_pcm_capture(service_audio_pcm_callback_t callback, void *user_ctx)
+{
+    if (!s_inited) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (callback == nullptr) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (s_recording) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (s_playing) {
+        ESP_RETURN_ON_ERROR(service_audio_stop_playback(), TAG, "stop playback before pcm capture failed");
+    }
+
+    portENTER_CRITICAL(&s_lock);
+    s_record_stop_req = false;
+    s_recording = true;
+    s_pcm_callback = callback;
+    s_pcm_callback_ctx = user_ctx;
+    audio_touch_revision_locked();
+    portEXIT_CRITICAL(&s_lock);
+    audio_set_state(AUDIO_STATE_RECORDING);
+    audio_set_event("PCM_CAPTURE_START");
+
+    BaseType_t ok = xTaskCreate(audio_record_task, "audio_pcm_cap", kTaskStack, nullptr, kTaskPrio, &s_record_task);
+    if (ok != pdPASS) {
+        portENTER_CRITICAL(&s_lock);
+        s_recording = false;
+        s_pcm_callback = nullptr;
+        s_pcm_callback_ctx = nullptr;
+        audio_touch_revision_locked();
+        portEXIT_CRITICAL(&s_lock);
+        audio_mark_error("PCM_TASK_FAIL", "create pcm capture task failed");
         return ESP_FAIL;
     }
     return ESP_OK;
@@ -478,6 +546,11 @@ esp_err_t service_audio_stop_record_test(void)
     portEXIT_CRITICAL(&s_lock);
     audio_set_event("REC_STOP_REQ");
     return audio_wait_task_exit(&s_record_task, 800);
+}
+
+esp_err_t service_audio_stop_pcm_capture(void)
+{
+    return service_audio_stop_record_test();
 }
 
 esp_err_t service_audio_play_test_tone(void)

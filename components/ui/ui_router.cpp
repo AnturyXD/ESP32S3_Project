@@ -10,6 +10,7 @@
 #include "freertos/queue.h"
 #include "lvgl.h"
 #include "service_audio.h"
+#include "service_ai.h"
 #include "service_cloud.h"
 #include "service_network.h"
 #include "service_storage.h"
@@ -32,6 +33,7 @@ static uint32_t s_missing_label_warn_count = 0;
 static uint32_t s_last_net_revision = 0;
 static uint32_t s_last_time_revision = 0;
 static uint32_t s_last_audio_revision = 0;
+static uint32_t s_last_ai_revision = 0;
 static uint32_t s_last_cloud_revision = 0;
 static uint32_t s_last_storage_revision = 0;
 static lv_obj_t *s_bound_screen = nullptr;
@@ -144,11 +146,13 @@ static void ui_router_refresh_status_internal_locked(bool force)
     const uint32_t net_revision = service_network_get_revision();
     const uint32_t time_revision = service_time_get_revision();
     const uint32_t audio_revision = service_audio_get_revision();
+    const uint32_t ai_revision = service_ai_get_revision();
     const uint32_t cloud_revision = service_cloud_get_revision();
     const uint32_t storage_revision = service_storage_get_revision();
     const bool state_changed =
         (net_revision != s_last_net_revision) || (time_revision != s_last_time_revision) ||
-        (audio_revision != s_last_audio_revision) || (cloud_revision != s_last_cloud_revision) ||
+        (audio_revision != s_last_audio_revision) || (ai_revision != s_last_ai_revision) ||
+        (cloud_revision != s_last_cloud_revision) ||
         (storage_revision != s_last_storage_revision) || force;
     if (!state_changed && (now_us - s_last_status_refresh_us < kStatusRefreshUs)) {
         return;
@@ -157,6 +161,7 @@ static void ui_router_refresh_status_internal_locked(bool force)
     s_last_net_revision = net_revision;
     s_last_time_revision = time_revision;
     s_last_audio_revision = audio_revision;
+    s_last_ai_revision = ai_revision;
     s_last_cloud_revision = cloud_revision;
     s_last_storage_revision = storage_revision;
 
@@ -187,6 +192,12 @@ static void ui_router_refresh_status_internal_locked(bool force)
     const char *cloud_heartbeat_str = service_cloud_get_last_heartbeat();
     const int cloud_http_status = service_cloud_get_last_http_status();
     const char *cloud_error_str = service_cloud_get_last_error();
+    const char *ai_state_str = service_ai_get_asr_state_string();
+    const bool ai_recording = service_ai_is_asr_recording();
+    const float ai_sent_seconds = service_ai_get_asr_sent_seconds();
+    const char *ai_partial_text = service_ai_get_partial_text();
+    const char *ai_final_text = service_ai_get_final_text();
+    const char *ai_error_str = service_ai_get_last_error();
     bool has_label_change = false;
 
     if (s_views.home_time_label != nullptr || s_views.home_wifi_label != nullptr) {
@@ -204,6 +215,30 @@ static void ui_router_refresh_status_internal_locked(bool force)
 
         snprintf(line, sizeof(line), "Peak Level: %u", static_cast<unsigned>(audio_peak));
         has_label_change |= ui_router_set_label_text(s_views.ai_peak_label, line);
+    }
+
+    if (s_views.ai_asr_state_label != nullptr || s_views.ai_asr_partial_label != nullptr ||
+        s_views.ai_asr_final_label != nullptr) {
+        snprintf(line, sizeof(line), "ASR State: %s", ai_state_str);
+        has_label_change |= ui_router_set_label_text(s_views.ai_asr_state_label, line);
+
+        snprintf(line, sizeof(line), "Server: %s", cloud_state_str);
+        has_label_change |= ui_router_set_label_text(s_views.ai_server_state_label, line);
+
+        snprintf(line, sizeof(line), "Recording: %s", ai_recording ? "Yes" : "No");
+        has_label_change |= ui_router_set_label_text(s_views.ai_asr_recording_label, line);
+
+        snprintf(line, sizeof(line), "Sent: %.1fs", static_cast<double>(ai_sent_seconds));
+        has_label_change |= ui_router_set_label_text(s_views.ai_asr_sent_label, line);
+
+        snprintf(line, sizeof(line), "Partial: %s", ai_partial_text);
+        has_label_change |= ui_router_set_label_text(s_views.ai_asr_partial_label, line);
+
+        snprintf(line, sizeof(line), "Final: %s", ai_final_text);
+        has_label_change |= ui_router_set_label_text(s_views.ai_asr_final_label, line);
+
+        snprintf(line, sizeof(line), "ASR Error: %s", ai_error_str);
+        has_label_change |= ui_router_set_label_text(s_views.ai_asr_error_label, line);
     }
 
     if (s_active_page == APP_PAGE_SETTINGS) {
@@ -278,6 +313,15 @@ static void ui_router_refresh_status_internal_locked(bool force)
 
         snprintf(line, sizeof(line), "Cloud Error: %s", cloud_error_str);
         has_label_change |= ui_router_set_label_text(s_views.debug_cloud_error_label, line);
+
+        snprintf(line, sizeof(line), "AI State: %s", ai_state_str);
+        has_label_change |= ui_router_set_label_text(s_views.debug_ai_state_label, line);
+
+        snprintf(line, sizeof(line), "ASR Sent: %.1fs", static_cast<double>(ai_sent_seconds));
+        has_label_change |= ui_router_set_label_text(s_views.debug_ai_sent_label, line);
+
+        snprintf(line, sizeof(line), "ASR Error: %s", ai_error_str);
+        has_label_change |= ui_router_set_label_text(s_views.debug_ai_error_label, line);
     }
 
     (void)has_label_change;
