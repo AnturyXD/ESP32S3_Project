@@ -37,6 +37,18 @@ esp_err_t service_audio_start_record_test(void);
 esp_err_t service_audio_stop_record_test(void);
 esp_err_t service_audio_start_pcm_capture(service_audio_pcm_callback_t callback, void *user_ctx);
 esp_err_t service_audio_stop_pcm_capture(void);
+/**
+ * @brief 播放一段 16kHz / 16bit PCM 音频。
+ *
+ * V0.8 TTS 只支持服务器返回的 mono PCM 或 WAV PCM。service_audio 内部负责把
+ * mono PCM 复制到 L/R 双声道槽位，适配当前 ES8311 播放链路。该函数不能从 UI
+ * task 直接调用，应该由 service_ai/service_cloud 的后台任务协调。
+ */
+esp_err_t service_audio_play_pcm_buffer(const int16_t *pcm,
+                                        size_t bytes,
+                                        int sample_rate,
+                                        int bits,
+                                        int channels);
 esp_err_t service_audio_play_test_tone(void);
 esp_err_t service_audio_stop_playback(void);
 audio_state_t service_audio_get_state(void);

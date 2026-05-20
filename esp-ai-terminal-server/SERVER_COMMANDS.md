@@ -117,3 +117,55 @@ Ctrl+C
 ```bash
 ss -ltnup | grep -E ':(18080)\b' || true
 ```
+
+## 10. V0.8 TTS 手动测试命令
+
+用途：在服务器本地 `.env` 填写 TTS 配置。真实密钥只允许写在服务器本地 `.env`，不要提交仓库。
+
+```env
+TTS_PROVIDER=volcengine
+TTS_MODEL=seed-tts-2.0
+TTS_API_VERSION=v3
+TTS_API_KEY=<火山 TTS API Key，如当前控制台使用 API Key 模式>
+TTS_RESOURCE_ID=seed-tts-2.0
+TTS_VOICE_TYPE=<控制台提供的音色 ID>
+TTS_AUDIO_FORMAT=pcm
+TTS_SAMPLE_RATE=16000
+TTS_BITS=16
+TTS_CHANNELS=1
+```
+
+用途：如果当前控制台提供的是 AppID / AccessToken 模式，则改填以下字段。
+
+```env
+TTS_APP_ID=<控制台 App ID>
+TTS_ACCESS_TOKEN=<控制台 Access Token>
+TTS_RESOURCE_ID=seed-tts-2.0
+TTS_VOICE_TYPE=<控制台提供的音色 ID>
+```
+
+用途：检查 TTS 配置摘要，不返回任何 TTS 密钥原文。
+
+```bash
+curl http://127.0.0.1:18080/api/esp-ai-terminal/tts/config
+```
+
+用途：测试 TTS 合成并保存服务器返回的 PCM 文件。必须把 `<DEVICE_SHARED_SECRET>` 替换为服务器 `.env` 中的设备共享密钥，不要写入文档或仓库。
+
+```bash
+curl -X POST http://127.0.0.1:18080/api/esp-ai-terminal/tts/synthesize \
+  -H "Content-Type: application/json" \
+  -H "X-Device-Token: <DEVICE_SHARED_SECRET>" \
+  -d '{"device_id":"esp32s3-dev-001","text":"你好，我是ESP32-S3 AI语音终端。","audio_format":"pcm","sample_rate":16000}' \
+  --output tts_test.pcm
+```
+
+用途：在服务器本地直接运行 TTS smoke test，验证火山 TTS 鉴权、Resource ID、Voice Type 和返回音频格式。
+
+```bash
+cd /home/ubuntu/esp-ai-terminal-server
+. .venv/bin/activate
+python scripts/tts_smoke_test.py
+```
+
+说明：V0.8 只接受 PCM 或 WAV PCM。若火山接口返回 MP3 / Opus / Ogg，本项目当前会返回 Unsupported Format，不会让 ESP32 盲目播放。

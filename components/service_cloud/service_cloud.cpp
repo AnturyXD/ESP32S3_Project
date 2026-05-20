@@ -1,9 +1,11 @@
 ﻿#include "service_cloud.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "app_config.h"
+#include "esp_heap_caps.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -28,6 +30,8 @@ constexpr TickType_t kHeartbeatDelay = pdMS_TO_TICKS(30000);
 constexpr TickType_t kHttpMutexTimeout = pdMS_TO_TICKS(12000);
 constexpr int kHttpTimeoutMs = 6000;
 constexpr int kChatHttpTimeoutMs = 30000;
+constexpr int kTtsHttpTimeoutMs = 30000;
+constexpr size_t kTtsMaxAudioBytes = AI_TTS_MAX_AUDIO_BYTES;
 
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 static SemaphoreHandle_t s_http_mutex = nullptr;
@@ -36,10 +40,14 @@ static cloud_state_t s_state = CLOUD_STATE_UNINIT;
 static bool s_registered = false;
 static int s_last_http_status = 0;
 static int s_last_chat_http_status = 0;
+static int s_last_tts_http_status = 0;
 static uint32_t s_revision = 0;
 static char s_last_event[96] = "uninit";
 static char s_last_error[128] = "None";
 static char s_last_chat_error[128] = "None";
+static char s_last_tts_error[128] = "None";
+static char s_last_tts_audio_format[16] = "--";
+static size_t s_last_tts_audio_bytes = 0;
 static char s_last_heartbeat[32] = "--";
 
 typedef struct {
@@ -47,6 +55,17 @@ typedef struct {
     size_t buffer_size;
     size_t len;
 } cloud_response_buffer_t;
+
+typedef struct {
+    uint8_t *buffer;
+    size_t max_size;
+    size_t len;
+    bool overflow;
+    char audio_format[16];
+    int sample_rate;
+    int bits;
+    int channels;
+} cloud_tts_response_t;
 
 static const char *cloud_state_to_string(cloud_state_t state)
 {
@@ -139,6 +158,27 @@ static void cloud_set_chat_error(const char *message, int http_status)
     ESP_LOGW(TAG, "chat error: %s, http_status=%d", message ? message : "Unknown", http_status);
 }
 
+static void cloud_set_tts_error(const char *message, int http_status)
+{
+    portENTER_CRITICAL(&s_lock);
+    s_last_tts_http_status = http_status;
+    snprintf(s_last_tts_error, sizeof(s_last_tts_error), "%s", message ? message : "Unknown");
+    ++s_revision;
+    portEXIT_CRITICAL(&s_lock);
+    ESP_LOGW(TAG, "tts error: %s, http_status=%d", message ? message : "Unknown", http_status);
+}
+
+static void cloud_set_tts_result(const char *format, size_t bytes, int http_status)
+{
+    portENTER_CRITICAL(&s_lock);
+    s_last_tts_http_status = http_status;
+    snprintf(s_last_tts_error, sizeof(s_last_tts_error), "None");
+    snprintf(s_last_tts_audio_format, sizeof(s_last_tts_audio_format), "%s", format ? format : "--");
+    s_last_tts_audio_bytes = bytes;
+    ++s_revision;
+    portEXIT_CRITICAL(&s_lock);
+}
+
 static bool cloud_config_ready(void)
 {
     return strlen(CLOUD_SERVER_BASE_URL) > 0 && strlen(DEVICE_ID) > 0;
@@ -183,6 +223,61 @@ static esp_err_t cloud_http_event_handler(esp_http_client_event_t *event)
         response->len += copy_len;
         response->buffer[response->len] = '\0';
     }
+    return ESP_OK;
+}
+
+static bool cloud_header_equals(const char *key, const char *expected)
+{
+    if (key == nullptr || expected == nullptr) {
+        return false;
+    }
+    while (*key != '\0' && *expected != '\0') {
+        char a = *key++;
+        char b = *expected++;
+        if (a >= 'A' && a <= 'Z') {
+            a = static_cast<char>(a - 'A' + 'a');
+        }
+        if (b >= 'A' && b <= 'Z') {
+            b = static_cast<char>(b - 'A' + 'a');
+        }
+        if (a != b) {
+            return false;
+        }
+    }
+    return *key == '\0' && *expected == '\0';
+}
+
+static esp_err_t cloud_tts_http_event_handler(esp_http_client_event_t *event)
+{
+    if (event == nullptr || event->user_data == nullptr) {
+        return ESP_OK;
+    }
+    cloud_tts_response_t *response = static_cast<cloud_tts_response_t *>(event->user_data);
+
+    if (event->event_id == HTTP_EVENT_ON_HEADER && event->header_key != nullptr && event->header_value != nullptr) {
+        if (cloud_header_equals(event->header_key, "X-Audio-Format")) {
+            snprintf(response->audio_format, sizeof(response->audio_format), "%s", event->header_value);
+        } else if (cloud_header_equals(event->header_key, "X-Sample-Rate")) {
+            response->sample_rate = atoi(event->header_value);
+        } else if (cloud_header_equals(event->header_key, "X-Bits")) {
+            response->bits = atoi(event->header_value);
+        } else if (cloud_header_equals(event->header_key, "X-Channels")) {
+            response->channels = atoi(event->header_value);
+        }
+        return ESP_OK;
+    }
+
+    if (event->event_id != HTTP_EVENT_ON_DATA || event->data == nullptr || event->data_len <= 0) {
+        return ESP_OK;
+    }
+
+    const size_t incoming = static_cast<size_t>(event->data_len);
+    if (response->len + incoming > response->max_size) {
+        response->overflow = true;
+        return ESP_OK;
+    }
+    memcpy(response->buffer + response->len, event->data, incoming);
+    response->len += incoming;
     return ESP_OK;
 }
 
@@ -564,6 +659,159 @@ esp_err_t service_cloud_chat_request(const char *text, char *reply_text, size_t 
     return ESP_OK;
 }
 
+esp_err_t service_cloud_tts_request(const char *text, cloud_tts_audio_t *audio)
+{
+    if (audio == nullptr) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    memset(audio, 0, sizeof(*audio));
+    snprintf(audio->audio_format, sizeof(audio->audio_format), "--");
+
+    if (text == nullptr || text[0] == '\0') {
+        cloud_set_tts_error("tts text empty", 0);
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!service_network_is_connected()) {
+        cloud_set_tts_error("tts skipped: no network", 0);
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (!service_cloud_is_registered()) {
+        cloud_set_tts_error("tts skipped: cloud not registered", 0);
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (s_http_mutex == nullptr || xSemaphoreTake(s_http_mutex, pdMS_TO_TICKS(kTtsHttpTimeoutMs + 2000)) != pdTRUE) {
+        cloud_set_tts_error("HTTP busy", 0);
+        return ESP_ERR_TIMEOUT;
+    }
+
+    uint8_t *buffer = static_cast<uint8_t *>(heap_caps_malloc(kTtsMaxAudioBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    if (buffer == nullptr) {
+        buffer = static_cast<uint8_t *>(heap_caps_malloc(kTtsMaxAudioBytes, MALLOC_CAP_8BIT));
+    }
+    if (buffer == nullptr) {
+        xSemaphoreGive(s_http_mutex);
+        cloud_set_tts_error("tts audio buffer alloc failed", 0);
+        return ESP_ERR_NO_MEM;
+    }
+
+    char device_id[64] = {0};
+    char escaped_text[1024] = {0};
+    char json[1280] = {0};
+    char url[192] = {0};
+    cloud_json_escape(DEVICE_ID, device_id, sizeof(device_id));
+    cloud_json_escape(text, escaped_text, sizeof(escaped_text));
+    cloud_join_url(CLOUD_TTS_PATH, url, sizeof(url));
+
+    snprintf(json,
+             sizeof(json),
+             "{\"device_id\":\"%s\",\"text\":\"%s\",\"voice_type\":\"\",\"audio_format\":\"pcm\",\"sample_rate\":%d}",
+             device_id,
+             escaped_text,
+             AUDIO_SAMPLE_RATE);
+
+    cloud_tts_response_t response = {};
+    response.buffer = buffer;
+    response.max_size = kTtsMaxAudioBytes;
+    response.sample_rate = AUDIO_SAMPLE_RATE;
+    response.bits = AUDIO_BITS;
+    response.channels = AUDIO_CHANNELS;
+    snprintf(response.audio_format, sizeof(response.audio_format), "pcm");
+
+    esp_http_client_config_t config = {};
+    config.url = url;
+    config.method = HTTP_METHOD_POST;
+    config.timeout_ms = kTtsHttpTimeoutMs;
+    config.disable_auto_redirect = false;
+    config.event_handler = cloud_tts_http_event_handler;
+    config.user_data = &response;
+
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+    if (client == nullptr) {
+        heap_caps_free(buffer);
+        xSemaphoreGive(s_http_mutex);
+        cloud_set_tts_error("esp_http_client_init failed", 0);
+        return ESP_ERR_NO_MEM;
+    }
+
+    esp_http_client_set_header(client, "Content-Type", "application/json");
+    if (strlen(DEVICE_SHARED_SECRET) > 0) {
+        esp_http_client_set_header(client, "X-Device-Token", DEVICE_SHARED_SECRET);
+    }
+    esp_http_client_set_post_field(client, json, strlen(json));
+
+    ESP_LOGI(TAG, "POST %s for TTS token_configured=%s", CLOUD_TTS_PATH, strlen(DEVICE_SHARED_SECRET) > 0 ? "yes" : "no");
+    esp_err_t err = esp_http_client_perform(client);
+    const int status = esp_http_client_get_status_code(client);
+    portENTER_CRITICAL(&s_lock);
+    s_last_tts_http_status = status;
+    ++s_revision;
+    portEXIT_CRITICAL(&s_lock);
+    esp_http_client_cleanup(client);
+    xSemaphoreGive(s_http_mutex);
+
+    if (err != ESP_OK) {
+        heap_caps_free(buffer);
+        char msg[96] = {0};
+        snprintf(msg, sizeof(msg), "TTS HTTP failed: %s", esp_err_to_name(err));
+        cloud_set_tts_error(msg, status);
+        return err;
+    }
+    if (status < 200 || status >= 300) {
+        heap_caps_free(buffer);
+        char msg[96] = {0};
+        snprintf(msg, sizeof(msg), "TTS HTTP status %d", status);
+        cloud_set_tts_error(msg, status);
+        return ESP_FAIL;
+    }
+    if (response.overflow) {
+        heap_caps_free(buffer);
+        cloud_set_tts_error("TTS audio too large", status);
+        return ESP_ERR_NO_MEM;
+    }
+    if (response.len == 0) {
+        heap_caps_free(buffer);
+        cloud_set_tts_error("TTS empty audio", status);
+        return ESP_FAIL;
+    }
+    if (response.buffer[0] == '{') {
+        heap_caps_free(buffer);
+        cloud_set_tts_error("TTS JSON error response", status);
+        return ESP_FAIL;
+    }
+    if (strcmp(response.audio_format, "pcm") != 0 && strcmp(response.audio_format, "wav") != 0) {
+        heap_caps_free(buffer);
+        cloud_set_tts_error("TTS unsupported audio format", status);
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+
+    audio->data = buffer;
+    audio->bytes = response.len;
+    snprintf(audio->audio_format, sizeof(audio->audio_format), "%s", response.audio_format);
+    audio->sample_rate = response.sample_rate;
+    audio->bits = response.bits;
+    audio->channels = response.channels;
+    cloud_set_tts_result(audio->audio_format, audio->bytes, status);
+    ESP_LOGI(TAG,
+             "TTS audio downloaded: bytes=%u format=%s sample_rate=%d bits=%d channels=%d",
+             static_cast<unsigned>(audio->bytes),
+             audio->audio_format,
+             audio->sample_rate,
+             audio->bits,
+             audio->channels);
+    return ESP_OK;
+}
+
+void service_cloud_free_tts_audio(cloud_tts_audio_t *audio)
+{
+    if (audio == nullptr) {
+        return;
+    }
+    if (audio->data != nullptr) {
+        heap_caps_free(audio->data);
+    }
+    memset(audio, 0, sizeof(*audio));
+}
+
 cloud_state_t service_cloud_get_state(void)
 {
     portENTER_CRITICAL(&s_lock);
@@ -618,6 +866,40 @@ const char *service_cloud_get_last_chat_error(void)
     snprintf(error, sizeof(error), "%s", s_last_chat_error);
     portEXIT_CRITICAL(&s_lock);
     return error;
+}
+
+int service_cloud_get_last_tts_http_status(void)
+{
+    portENTER_CRITICAL(&s_lock);
+    const int status = s_last_tts_http_status;
+    portEXIT_CRITICAL(&s_lock);
+    return status;
+}
+
+const char *service_cloud_get_last_tts_error(void)
+{
+    static char error[128];
+    portENTER_CRITICAL(&s_lock);
+    snprintf(error, sizeof(error), "%s", s_last_tts_error);
+    portEXIT_CRITICAL(&s_lock);
+    return error;
+}
+
+const char *service_cloud_get_last_tts_audio_format(void)
+{
+    static char format[16];
+    portENTER_CRITICAL(&s_lock);
+    snprintf(format, sizeof(format), "%s", s_last_tts_audio_format);
+    portEXIT_CRITICAL(&s_lock);
+    return format;
+}
+
+size_t service_cloud_get_last_tts_audio_bytes(void)
+{
+    portENTER_CRITICAL(&s_lock);
+    const size_t bytes = s_last_tts_audio_bytes;
+    portEXIT_CRITICAL(&s_lock);
+    return bytes;
 }
 
 bool service_cloud_is_registered(void)

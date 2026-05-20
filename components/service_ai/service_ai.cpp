@@ -18,7 +18,7 @@ static const char *TAG = "AI";
 
 namespace {
 
-constexpr uint32_t kTaskStackBytes = 12288;
+constexpr uint32_t kTaskStackBytes = 16384;
 constexpr UBaseType_t kTaskPriority = 5;
 constexpr int kWebsocketTimeoutMs = 8000;
 constexpr uint32_t kAsrPacketMs = AI_ASR_PACKET_MS;
@@ -35,14 +35,18 @@ static EventGroupHandle_t s_ws_events = nullptr;
 static esp_websocket_client_handle_t s_ws = nullptr;
 static ai_asr_state_t s_state = AI_ASR_STATE_IDLE;
 static ai_llm_state_t s_llm_state = AI_LLM_STATE_IDLE;
+static ai_tts_state_t s_tts_state = AI_TTS_STATE_IDLE;
 static bool s_stop_requested = false;
 static bool s_recording = false;
+static bool s_tts_speaking = false;
 static uint32_t s_revision = 0;
 static uint32_t s_sent_bytes = 0;
+static size_t s_tts_audio_bytes = 0;
 static char s_partial_text[256] = "";
 static char s_final_text[512] = "";
 static char s_reply_text[512] = "";
 static char s_llm_error[160] = "None";
+static char s_tts_error[160] = "None";
 static char s_last_error[160] = "None";
 static uint8_t s_packet_buffer[kAsrPacketBytes] = {0};
 static size_t s_packet_len = 0;
@@ -80,6 +84,30 @@ static const char *llm_state_to_string(ai_llm_state_t state)
         return "Error";
     case AI_LLM_STATE_CONFIG_MISSING:
         return "Config Missing";
+    default:
+        return "Unknown";
+    }
+}
+
+static const char *tts_state_to_string(ai_tts_state_t state)
+{
+    switch (state) {
+    case AI_TTS_STATE_IDLE:
+        return "Idle";
+    case AI_TTS_STATE_REQUESTING:
+        return "Requesting";
+    case AI_TTS_STATE_DOWNLOADING:
+        return "Downloading";
+    case AI_TTS_STATE_PLAYING:
+        return "Playing";
+    case AI_TTS_STATE_DONE:
+        return "Done";
+    case AI_TTS_STATE_ERROR:
+        return "Error";
+    case AI_TTS_STATE_CONFIG_MISSING:
+        return "Config Missing";
+    case AI_TTS_STATE_UNSUPPORTED_FORMAT:
+        return "Unsupported Format";
     default:
         return "Unknown";
     }
@@ -140,6 +168,32 @@ static void ai_set_llm_error(const char *message, ai_llm_state_t state = AI_LLM_
     ESP_LOGW(TAG, "LLM error: %s", message ? message : "Unknown");
 }
 
+static void ai_set_tts_state(ai_tts_state_t state)
+{
+    bool changed = false;
+    portENTER_CRITICAL(&s_lock);
+    changed = (s_tts_state != state);
+    s_tts_state = state;
+    if (changed) {
+        ai_touch_revision_locked();
+    }
+    portEXIT_CRITICAL(&s_lock);
+    if (changed) {
+        ESP_LOGI(TAG, "TTS state -> %s", tts_state_to_string(state));
+    }
+}
+
+static void ai_set_tts_error(const char *message, ai_tts_state_t state = AI_TTS_STATE_ERROR)
+{
+    portENTER_CRITICAL(&s_lock);
+    s_tts_state = state;
+    snprintf(s_tts_error, sizeof(s_tts_error), "%s", message ? message : "Unknown");
+    s_tts_speaking = false;
+    ai_touch_revision_locked();
+    portEXIT_CRITICAL(&s_lock);
+    ESP_LOGW(TAG, "TTS error: %s", message ? message : "Unknown");
+}
+
 static bool ai_stop_requested(void)
 {
     portENTER_CRITICAL(&s_lock);
@@ -162,7 +216,11 @@ static void ai_reset_result_locked(void)
     s_final_text[0] = '\0';
     s_reply_text[0] = '\0';
     s_llm_state = AI_LLM_STATE_IDLE;
+    s_tts_state = AI_TTS_STATE_IDLE;
+    s_tts_speaking = false;
+    s_tts_audio_bytes = 0;
     snprintf(s_llm_error, sizeof(s_llm_error), "None");
+    snprintf(s_tts_error, sizeof(s_tts_error), "None");
     snprintf(s_last_error, sizeof(s_last_error), "None");
     s_sent_bytes = 0;
     s_packet_len = 0;
@@ -457,6 +515,141 @@ static bool ai_get_final_for_chat(char *out, size_t out_size)
     return out[0] != '\0' && strcmp(out, "No final text") != 0;
 }
 
+static bool ai_get_reply_for_tts(char *out, size_t out_size)
+{
+    if (out == nullptr || out_size == 0) {
+        return false;
+    }
+    portENTER_CRITICAL(&s_lock);
+    snprintf(out, out_size, "%s", s_reply_text);
+    portEXIT_CRITICAL(&s_lock);
+    return out[0] != '\0';
+}
+
+static bool ai_try_parse_wav_pcm(const uint8_t *data,
+                                 size_t bytes,
+                                 const int16_t **pcm,
+                                 size_t *pcm_bytes,
+                                 int *sample_rate,
+                                 int *bits,
+                                 int *channels)
+{
+    if (data == nullptr || bytes < 44 || pcm == nullptr || pcm_bytes == nullptr || sample_rate == nullptr ||
+        bits == nullptr || channels == nullptr) {
+        return false;
+    }
+    if (memcmp(data, "RIFF", 4) != 0 || memcmp(data + 8, "WAVE", 4) != 0) {
+        return false;
+    }
+
+    size_t offset = 12;
+    bool has_fmt = false;
+    while (offset + 8 <= bytes) {
+        const uint8_t *chunk = data + offset;
+        uint32_t chunk_size = static_cast<uint32_t>(chunk[4]) |
+                              (static_cast<uint32_t>(chunk[5]) << 8) |
+                              (static_cast<uint32_t>(chunk[6]) << 16) |
+                              (static_cast<uint32_t>(chunk[7]) << 24);
+        offset += 8;
+        if (offset + chunk_size > bytes) {
+            return false;
+        }
+        if (memcmp(chunk, "fmt ", 4) == 0 && chunk_size >= 16) {
+            uint16_t audio_format = static_cast<uint16_t>(data[offset]) | (static_cast<uint16_t>(data[offset + 1]) << 8);
+            *channels = static_cast<uint16_t>(data[offset + 2]) | (static_cast<uint16_t>(data[offset + 3]) << 8);
+            *sample_rate = static_cast<int>(data[offset + 4]) |
+                           (static_cast<int>(data[offset + 5]) << 8) |
+                           (static_cast<int>(data[offset + 6]) << 16) |
+                           (static_cast<int>(data[offset + 7]) << 24);
+            *bits = static_cast<uint16_t>(data[offset + 14]) | (static_cast<uint16_t>(data[offset + 15]) << 8);
+            if (audio_format != 1) {
+                return false;
+            }
+            has_fmt = true;
+        } else if (memcmp(chunk, "data", 4) == 0 && has_fmt) {
+            *pcm = reinterpret_cast<const int16_t *>(data + offset);
+            *pcm_bytes = chunk_size;
+            return true;
+        }
+        offset += (chunk_size + 1) & ~static_cast<size_t>(1);
+    }
+    return false;
+}
+
+static void ai_request_tts_if_ready(void)
+{
+    char reply_text[512] = {0};
+    cloud_tts_audio_t audio = {};
+
+    if (!ai_get_reply_for_tts(reply_text, sizeof(reply_text))) {
+        ESP_LOGI(TAG, "TTS skipped: reply text empty");
+        return;
+    }
+
+    /*
+     * V0.8 只做一轮回复合成：LLM 成功后请求服务器 TTS，服务器返回
+     * 16kHz/16bit/mono PCM 或 WAV PCM。该后台任务不是 UI task，因此可以
+     * 执行 HTTP 下载和同步播放，但不能操作 LVGL。
+     */
+    ai_set_tts_state(AI_TTS_STATE_REQUESTING);
+    ai_set_tts_state(AI_TTS_STATE_DOWNLOADING);
+    esp_err_t err = service_cloud_tts_request(reply_text, &audio);
+    if (err != ESP_OK) {
+        const char *cloud_tts_error = service_cloud_get_last_tts_error();
+        if (cloud_tts_error != nullptr && strstr(cloud_tts_error, "Config Missing") != nullptr) {
+            ai_set_tts_error("TTS Config Missing", AI_TTS_STATE_CONFIG_MISSING);
+        } else if (err == ESP_ERR_NOT_SUPPORTED) {
+            ai_set_tts_error(cloud_tts_error ? cloud_tts_error : "TTS Unsupported Format", AI_TTS_STATE_UNSUPPORTED_FORMAT);
+        } else {
+            ai_set_tts_error(cloud_tts_error ? cloud_tts_error : "TTS request failed");
+        }
+        return;
+    }
+
+    portENTER_CRITICAL(&s_lock);
+    s_tts_audio_bytes = audio.bytes;
+    ai_touch_revision_locked();
+    portEXIT_CRITICAL(&s_lock);
+    const int16_t *pcm = reinterpret_cast<const int16_t *>(audio.data);
+    size_t pcm_bytes = audio.bytes;
+    int sample_rate = audio.sample_rate;
+    int bits = audio.bits;
+    int channels = audio.channels;
+    if (strcmp(audio.audio_format, "wav") == 0) {
+        if (!ai_try_parse_wav_pcm(audio.data, audio.bytes, &pcm, &pcm_bytes, &sample_rate, &bits, &channels)) {
+            service_cloud_free_tts_audio(&audio);
+            ai_set_tts_error("WAV PCM parse failed", AI_TTS_STATE_UNSUPPORTED_FORMAT);
+            return;
+        }
+    } else if (strcmp(audio.audio_format, "pcm") != 0) {
+        service_cloud_free_tts_audio(&audio);
+        ai_set_tts_error("TTS Unsupported Format", AI_TTS_STATE_UNSUPPORTED_FORMAT);
+        return;
+    }
+
+    portENTER_CRITICAL(&s_lock);
+    s_tts_speaking = true;
+    ai_touch_revision_locked();
+    portEXIT_CRITICAL(&s_lock);
+    ai_set_tts_state(AI_TTS_STATE_PLAYING);
+    err = service_audio_play_pcm_buffer(pcm, pcm_bytes, sample_rate, bits, channels);
+    service_cloud_free_tts_audio(&audio);
+
+    portENTER_CRITICAL(&s_lock);
+    s_tts_speaking = false;
+    ai_touch_revision_locked();
+    portEXIT_CRITICAL(&s_lock);
+    if (err != ESP_OK) {
+        ai_set_tts_error("TTS playback failed");
+        return;
+    }
+    portENTER_CRITICAL(&s_lock);
+    snprintf(s_tts_error, sizeof(s_tts_error), "None");
+    ai_touch_revision_locked();
+    portEXIT_CRITICAL(&s_lock);
+    ai_set_tts_state(AI_TTS_STATE_DONE);
+}
+
 static void ai_request_llm_if_ready(void)
 {
     char final_text[512] = {0};
@@ -491,6 +684,7 @@ static void ai_request_llm_if_ready(void)
     ai_touch_revision_locked();
     portEXIT_CRITICAL(&s_lock);
     ESP_LOGI(TAG, "LLM state -> %s", llm_state_to_string(AI_LLM_STATE_DONE));
+    ai_request_tts_if_ready();
 }
 
 static void ai_asr_task(void *arg)
@@ -631,7 +825,7 @@ esp_err_t service_ai_init(void)
             return ESP_ERR_NO_MEM;
         }
     }
-    ESP_LOGI(TAG, "service_ai initialized (V0.7 ASR + LLM chat bridge ready)");
+    ESP_LOGI(TAG, "service_ai initialized (V0.8 ASR + LLM + TTS bridge ready)");
     return ESP_OK;
 }
 
@@ -772,6 +966,67 @@ const char *service_ai_get_llm_error(void)
     snprintf(error, sizeof(error), "%s", s_llm_error);
     portEXIT_CRITICAL(&s_lock);
     return error;
+}
+
+ai_tts_state_t service_ai_get_tts_state(void)
+{
+    portENTER_CRITICAL(&s_lock);
+    ai_tts_state_t state = s_tts_state;
+    portEXIT_CRITICAL(&s_lock);
+    return state;
+}
+
+const char *service_ai_get_tts_state_string(void)
+{
+    return tts_state_to_string(service_ai_get_tts_state());
+}
+
+const char *service_ai_get_tts_status(void)
+{
+    ai_tts_state_t state = service_ai_get_tts_state();
+    switch (state) {
+    case AI_TTS_STATE_PLAYING:
+        return "Speaking";
+    case AI_TTS_STATE_DONE:
+        return "Speech Done";
+    case AI_TTS_STATE_REQUESTING:
+    case AI_TTS_STATE_DOWNLOADING:
+        return "Preparing Speech";
+    case AI_TTS_STATE_CONFIG_MISSING:
+        return "Config Missing";
+    case AI_TTS_STATE_UNSUPPORTED_FORMAT:
+        return "Unsupported Format";
+    case AI_TTS_STATE_ERROR:
+        return "Error";
+    case AI_TTS_STATE_IDLE:
+    default:
+        return "--";
+    }
+}
+
+const char *service_ai_get_tts_error(void)
+{
+    static char error[160];
+    portENTER_CRITICAL(&s_lock);
+    snprintf(error, sizeof(error), "%s", s_tts_error);
+    portEXIT_CRITICAL(&s_lock);
+    return error;
+}
+
+bool service_ai_is_tts_speaking(void)
+{
+    portENTER_CRITICAL(&s_lock);
+    bool speaking = s_tts_speaking;
+    portEXIT_CRITICAL(&s_lock);
+    return speaking;
+}
+
+size_t service_ai_get_tts_audio_bytes(void)
+{
+    portENTER_CRITICAL(&s_lock);
+    size_t bytes = s_tts_audio_bytes;
+    portEXIT_CRITICAL(&s_lock);
+    return bytes;
 }
 
 float service_ai_get_asr_sent_seconds(void)

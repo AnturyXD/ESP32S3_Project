@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "esp_err.h"
@@ -39,6 +40,23 @@ typedef enum {
     AI_LLM_STATE_CONFIG_MISSING,
 } ai_llm_state_t;
 
+/**
+ * @brief V0.8 TTS 中文语音播放状态。
+ *
+ * ESP32 只请求自建服务器 TTS 接口并播放服务器返回的 PCM/WAV PCM；
+ * 火山 TTS Key 只保存在服务器本地 .env。
+ */
+typedef enum {
+    AI_TTS_STATE_IDLE = 0,
+    AI_TTS_STATE_REQUESTING,
+    AI_TTS_STATE_DOWNLOADING,
+    AI_TTS_STATE_PLAYING,
+    AI_TTS_STATE_DONE,
+    AI_TTS_STATE_ERROR,
+    AI_TTS_STATE_CONFIG_MISSING,
+    AI_TTS_STATE_UNSUPPORTED_FORMAT,
+} ai_tts_state_t;
+
 esp_err_t service_ai_init(void);
 esp_err_t service_ai_start_asr(void);
 esp_err_t service_ai_stop_asr(void);
@@ -52,6 +70,12 @@ const char *service_ai_get_llm_state_string(void);
 const char *service_ai_get_reply_text(void);
 const char *service_ai_get_reply_status(void);
 const char *service_ai_get_llm_error(void);
+ai_tts_state_t service_ai_get_tts_state(void);
+const char *service_ai_get_tts_state_string(void);
+const char *service_ai_get_tts_status(void);
+const char *service_ai_get_tts_error(void);
+bool service_ai_is_tts_speaking(void);
+size_t service_ai_get_tts_audio_bytes(void);
 float service_ai_get_asr_sent_seconds(void);
 bool service_ai_is_asr_recording(void);
 uint32_t service_ai_get_revision(void);

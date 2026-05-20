@@ -57,8 +57,20 @@ class Settings(BaseSettings):
     llm_max_output_tokens: int = Field(default=512, alias="LLM_MAX_OUTPUT_TOKENS")
     tts_provider: str = Field(default="volcengine", alias="TTS_PROVIDER")
     tts_model: str = Field(default="seed-tts-2.0", alias="TTS_MODEL")
+    tts_api_version: str = Field(default="v3", alias="TTS_API_VERSION")
+    tts_ws_url: str = Field(default="", alias="TTS_WS_URL")
+    tts_app_id: str = Field(default="", alias="TTS_APP_ID")
+    tts_access_token: str = Field(default="", alias="TTS_ACCESS_TOKEN")
     tts_api_key: str = Field(default="", alias="TTS_API_KEY")
+    tts_cluster: str = Field(default="", alias="TTS_CLUSTER")
+    tts_resource_id: str = Field(default="seed-tts-2.0", alias="TTS_RESOURCE_ID")
     tts_voice_type: str = Field(default="", alias="TTS_VOICE_TYPE")
+    tts_audio_format: str = Field(default="pcm", alias="TTS_AUDIO_FORMAT")
+    tts_sample_rate: int = Field(default=16000, alias="TTS_SAMPLE_RATE")
+    tts_bits: int = Field(default=16, alias="TTS_BITS")
+    tts_channels: int = Field(default=1, alias="TTS_CHANNELS")
+    tts_max_text_chars: int = Field(default=300, alias="TTS_MAX_TEXT_CHARS")
+    tts_timeout_seconds: int = Field(default=30, alias="TTS_TIMEOUT_SECONDS")
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -208,6 +220,95 @@ class Settings(BaseSettings):
             "max_output_tokens": self.llm_max_output_tokens,
         }
 
+    @property
+    def tts_api_key_configured(self) -> bool:
+        """判断新版控制台 TTS API Key 是否已配置。
+
+        新版豆包语音合成 V3 推荐使用 X-Api-Key + X-Api-Resource-Id。
+        这里只返回布尔值，绝不把 Key 原文暴露给审计接口或日志。
+        """
+
+        return bool(self.tts_api_key.strip())
+
+    @property
+    def tts_app_token_configured(self) -> bool:
+        """判断旧版控制台 AppID / AccessToken 鉴权是否已配置。"""
+
+        return bool(self.tts_app_id.strip()) and bool(self.tts_access_token.strip())
+
+    @property
+    def tts_credential_configured(self) -> bool:
+        """判断是否存在一种可用的 TTS 鉴权方式。"""
+
+        return self.tts_api_key_configured or self.tts_app_token_configured
+
+    @property
+    def tts_auth_mode(self) -> str:
+        """返回 TTS 鉴权模式摘要，不包含密钥内容。"""
+
+        if self.tts_api_key_configured:
+            return "api_key"
+        if self.tts_app_token_configured:
+            return "app_access_token"
+        return "missing"
+
+    @property
+    def tts_effective_url(self) -> str:
+        """返回 V0.8 使用的火山 TTS HTTP Chunked 接口地址。
+
+        历史字段名保留为 TTS_WS_URL，但 V0.8 明确采用 HTTP Chunked
+        单向流式接口，未配置时使用官方 V3 HTTP endpoint。
+        """
+
+        return self.tts_ws_url.strip() or "https://openspeech.bytedance.com/api/v3/tts/unidirectional"
+
+    @property
+    def tts_configured(self) -> bool:
+        """判断 TTS 合成所需配置是否完整。
+
+        V0.8 仅支持返回 ESP32 可直接播放的 PCM/WAV PCM。音色 speaker
+        是官方接口必填项，因此也纳入配置完整性检查。
+        """
+
+        return all(
+            [
+                self.tts_provider.strip(),
+                self.tts_resource_id.strip(),
+                self.tts_credential_configured,
+                self.tts_voice_type.strip(),
+                self.tts_audio_format.strip(),
+                self.tts_sample_rate > 0,
+                self.tts_bits == 16,
+                self.tts_channels == 1,
+                self.tts_max_text_chars > 0,
+                self.tts_timeout_seconds > 0,
+            ]
+        )
+
+    def tts_public_config_summary(self) -> dict[str, object]:
+        """返回 TTS 非敏感配置摘要。
+
+        用于 `/api/esp-ai-terminal/tts/config`。该摘要只说明配置是否齐全，
+        不返回 API Key、Access Token、App ID、音色原文等可能敏感的信息。
+        """
+
+        return {
+            "status": "ok" if self.tts_configured else "Config Missing",
+            "provider": self.tts_provider,
+            "configured": self.tts_configured,
+            "model": self.tts_model,
+            "api_version": self.tts_api_version,
+            "voice_configured": bool(self.tts_voice_type.strip()),
+            "audio_format": self.tts_audio_format,
+            "sample_rate": self.tts_sample_rate,
+            "bits": self.tts_bits,
+            "channels": self.tts_channels,
+            "max_text_chars": self.tts_max_text_chars,
+            "timeout_seconds": self.tts_timeout_seconds,
+            "credential_configured": self.tts_credential_configured,
+            "auth_mode": self.tts_auth_mode,
+        }
+
     def runtime_audit_summary(self) -> dict[str, object]:
         """生成可公开给本地审计接口的运行摘要。
 
@@ -234,6 +335,8 @@ class Settings(BaseSettings):
             "ark_api_key_configured": self.ark_api_key_configured,
             "llm_configured": self.llm_configured,
             "TTS_API_KEY_CONFIGURED": bool(self.tts_api_key),
+            "tts_configured": self.tts_configured,
+            "tts_key_configured": self.tts_credential_configured,
             "DEVICE_SHARED_SECRET_CONFIGURED": self.device_auth_configured,
             "device_auth_configured": self.device_auth_configured,
         }

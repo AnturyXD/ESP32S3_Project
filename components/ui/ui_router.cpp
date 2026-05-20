@@ -238,8 +238,15 @@ static void ui_router_refresh_status_internal_locked(bool force)
     const char *reply_status_str = service_ai_get_reply_status();
     const char *reply_text_str = service_ai_get_reply_text();
     const char *llm_error_str = service_ai_get_llm_error();
+    const char *tts_state_str = service_ai_get_tts_state_string();
+    const bool tts_speaking = service_ai_is_tts_speaking();
+    const size_t tts_audio_bytes = service_ai_get_tts_audio_bytes();
+    const char *tts_error_str = service_ai_get_tts_error();
     const int chat_http_status = service_cloud_get_last_chat_http_status();
     const char *chat_error_str = service_cloud_get_last_chat_error();
+    const int tts_http_status = service_cloud_get_last_tts_http_status();
+    const char *tts_cloud_error_str = service_cloud_get_last_tts_error();
+    const char *tts_format_str = service_cloud_get_last_tts_audio_format();
     const bool reply_received = (service_ai_get_llm_state() == AI_LLM_STATE_DONE);
     bool has_label_change = false;
 
@@ -289,7 +296,20 @@ static void ui_router_refresh_status_internal_locked(bool force)
         snprintf(line, sizeof(line), "Reply Text: %s", ui_router_reply_text_or_fallback(reply_text_str));
         has_label_change |= ui_router_set_label_text(s_views.ai_reply_text_label, line);
 
-        snprintf(line, sizeof(line), "Last Error: %s", strcmp(ai_error_str, "None") == 0 ? llm_error_str : ai_error_str);
+        snprintf(line, sizeof(line), "TTS State: %s", tts_state_str);
+        has_label_change |= ui_router_set_label_text(s_views.ai_tts_state_label, line);
+
+        snprintf(line, sizeof(line), "Speaking: %s", tts_speaking ? "Yes" : "No");
+        has_label_change |= ui_router_set_label_text(s_views.ai_tts_speaking_label, line);
+
+        snprintf(line, sizeof(line), "TTS Bytes: %u", static_cast<unsigned>(tts_audio_bytes));
+        has_label_change |= ui_router_set_label_text(s_views.ai_tts_bytes_label, line);
+
+        const char *combined_error = ai_error_str;
+        if (strcmp(combined_error, "None") == 0) {
+            combined_error = (strcmp(llm_error_str, "None") == 0) ? tts_error_str : llm_error_str;
+        }
+        snprintf(line, sizeof(line), "Last Error: %s", combined_error);
         has_label_change |= ui_router_set_label_text(s_views.ai_asr_error_label, line);
     }
 
@@ -386,6 +406,21 @@ static void ui_router_refresh_status_internal_locked(bool force)
 
         snprintf(line, sizeof(line), "Reply Received: %s", reply_received ? "Yes" : "No");
         has_label_change |= ui_router_set_label_text(s_views.debug_reply_received_label, line);
+
+        snprintf(line, sizeof(line), "TTS State: %s", tts_state_str);
+        has_label_change |= ui_router_set_label_text(s_views.debug_tts_state_label, line);
+
+        snprintf(line, sizeof(line), "TTS HTTP: %d", tts_http_status);
+        has_label_change |= ui_router_set_label_text(s_views.debug_tts_http_label, line);
+
+        snprintf(line, sizeof(line), "TTS Format: %s", tts_format_str);
+        has_label_change |= ui_router_set_label_text(s_views.debug_tts_format_label, line);
+
+        snprintf(line, sizeof(line), "TTS Bytes: %u", static_cast<unsigned>(tts_audio_bytes));
+        has_label_change |= ui_router_set_label_text(s_views.debug_tts_bytes_label, line);
+
+        snprintf(line, sizeof(line), "TTS Error: %s", strcmp(tts_error_str, "None") == 0 ? tts_cloud_error_str : tts_error_str);
+        has_label_change |= ui_router_set_label_text(s_views.debug_tts_error_label, line);
     }
 
     (void)has_label_change;

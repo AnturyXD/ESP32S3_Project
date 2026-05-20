@@ -55,7 +55,7 @@ extern "C" {
 #define DEVICE_SHARED_SECRET ""
 #endif
 #ifndef APP_FIRMWARE_VERSION
-#define APP_FIRMWARE_VERSION "V0.7"
+#define APP_FIRMWARE_VERSION "V0.8"
 #endif
 #ifndef DEVICE_HARDWARE_NAME
 #define DEVICE_HARDWARE_NAME "ESP32-S3-Touch-LCD-3.49"
@@ -73,12 +73,20 @@ extern "C" {
 #define CLOUD_CHAT_PATH "/api/esp-ai-terminal/chat"
 #endif
 
+#ifndef CLOUD_TTS_PATH
+#define CLOUD_TTS_PATH "/api/esp-ai-terminal/tts/synthesize"
+#endif
+
 #ifndef AI_ASR_MAX_SECONDS
 #define AI_ASR_MAX_SECONDS 15
 #endif
 
 #ifndef AI_ASR_PACKET_MS
 #define AI_ASR_PACKET_MS 200
+#endif
+
+#ifndef AI_TTS_MAX_AUDIO_BYTES
+#define AI_TTS_MAX_AUDIO_BYTES (512 * 1024)
 #endif
 
 #define AUDIO_SAMPLE_RATE 16000

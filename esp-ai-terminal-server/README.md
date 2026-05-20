@@ -1,8 +1,8 @@
 ﻿# ESP AI Terminal Server
 
-这是 ESP32-S3 触屏 AI 语音终端的轻量服务器网关。当前阶段已完成设备管理、鉴权、心跳验证、服务器侧火山 ASR 和 V0.6 设备音频 ASR 通道；V0.7 新增火山方舟 LLM 文本对话代理。
+这是 ESP32-S3 触屏 AI 语音终端的轻量服务器网关。当前阶段已完成设备管理、鉴权、心跳验证、服务器侧火山 ASR、V0.6 设备音频 ASR 通道和 V0.7 火山方舟 LLM 文本对话代理；V0.8 新增火山 TTS 代理与设备中文语音播放。
 
-当前阶段：V0.7  
+当前阶段：V0.8  
 默认内部端口：`127.0.0.1:18080`  
 临时公网调试端口：`0.0.0.0:18080`，必须手动确认安全组和 UFW
 
@@ -18,7 +18,7 @@
 - 不修改 systemd
 - 不修改 Docker / Docker Compose
 - 不占用 80 / 443
-- V0.7 只接 LLM 文本代理，不接 TTS，不返回音频
+- V0.8 接入 TTS 代理，但只返回 ESP32 可播放的 PCM/WAV PCM
 - 不在仓库提交 `.env`、API Key、Token、密码
 
 ## 2. 当前接口
@@ -532,4 +532,84 @@ ESP32 实机验证：
 6. 点击 Stop ASR，确认 Sent 秒数停止增长。
 
 
+
+
+## 15. V0.8 TTS 中文语音播放
+
+V0.8 的目标是把 LLM 返回的中文 `reply_text` 交给服务器 TTS 代理，服务器调用火山 TTS 后返回 ESP32 可播放的 PCM 或 WAV PCM。ESP32 不保存火山 TTS 密钥，也不直接访问火山 TTS。
+
+新增接口：
+
+```http
+GET  /api/esp-ai-terminal/tts/config
+POST /api/esp-ai-terminal/tts/synthesize
+```
+
+`/tts/synthesize` 需要 `X-Device-Token` 鉴权。成功时返回二进制音频，并带有：
+
+```http
+X-Audio-Format: pcm
+X-Sample-Rate: 16000
+X-Bits: 16
+X-Channels: 1
+X-Audio-Bytes: <bytes>
+```
+
+服务器本地 `.env` 的 TTS 最小配置示例：
+
+```env
+TTS_PROVIDER=volcengine
+TTS_MODEL=seed-tts-2.0
+TTS_API_VERSION=v3
+TTS_API_KEY=只填服务器本地真实值
+TTS_RESOURCE_ID=seed-tts-2.0
+TTS_VOICE_TYPE=控制台提供的音色 ID
+TTS_AUDIO_FORMAT=pcm
+TTS_SAMPLE_RATE=16000
+TTS_BITS=16
+TTS_CHANNELS=1
+TTS_MAX_TEXT_CHARS=300
+TTS_TIMEOUT_SECONDS=30
+```
+
+如果控制台提供 AppID / AccessToken 模式，则使用：
+
+```env
+TTS_APP_ID=只填服务器本地真实值
+TTS_ACCESS_TOKEN=只填服务器本地真实值
+TTS_RESOURCE_ID=seed-tts-2.0
+TTS_VOICE_TYPE=控制台提供的音色 ID
+```
+
+验证配置：
+
+```bash
+curl http://127.0.0.1:18080/api/esp-ai-terminal/tts/config
+```
+
+测试合成：
+
+```bash
+curl -X POST http://127.0.0.1:18080/api/esp-ai-terminal/tts/synthesize \
+  -H "Content-Type: application/json" \
+  -H "X-Device-Token: YOUR_DEVICE_SHARED_SECRET" \
+  -d '{"device_id":"esp32s3-dev-001","text":"你好，我是ESP32-S3 AI语音终端。","audio_format":"pcm","sample_rate":16000}' \
+  --output tts_test.pcm
+```
+
+运行服务器侧 smoke test：
+
+```bash
+cd /home/ubuntu/esp-ai-terminal-server
+. .venv/bin/activate
+python scripts/tts_smoke_test.py
+```
+
+限制：
+
+- V0.8 不接 Doubao Realtime API。
+- V0.8 不做声音复刻。
+- V0.8 不引入 ffmpeg。
+- V0.8 只接受 PCM 或 WAV PCM；如果云端返回 MP3 / Opus / Ogg，服务器会返回 Unsupported Format。
+- 屏幕不显示中文原文，中文输出由 TTS 播放承担。
 

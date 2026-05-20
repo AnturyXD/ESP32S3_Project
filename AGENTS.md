@@ -52,16 +52,23 @@ S0.3      服务器最小运行 + 注册/心跳接口：PASS
 S0.4      ESP32 真机注册与周期心跳上报：PASS
 S0.5      服务器侧火山 ASR WebSocket smoke test：PASS
 V0.6      ESP32 音频 → 服务器 → 火山 ASR → 识别结果返回设备：PASS / 主链路跑通
+V0.6.1    ASR 稳定性收尾，不做中文显示：PASS / 实机验收通过
+V0.7      LLM 文本对话代理：PASS / 实机验收通过
+V0.8      TTS 中文语音播放：PASS / 实机验收通过
 ```
 
-当前下一阶段：
+当前阶段：
 
 ```text
-V0.6.1    ASR 稳定性收尾，不做中文显示
-V0.7      LLM 文本对话代理
-V0.8      TTS 中文语音播放
+V0.8      基线冻结与文档同步
 V0.9      AI Voice 状态机稳定性
 V1.0      MVP 演示版
+```
+
+当前结论：
+
+```text
+V0.8 PASS：TTS 中文语音播放实机通过，可以进入 V0.9，但当前暂不进入下一版本。
 ```
 
 ---
@@ -281,13 +288,16 @@ GET  /api/esp-ai-terminal/devices/{device_id}/status
 
 GET  /api/esp-ai-terminal/asr/config
 WS   /ws/esp-ai-terminal/asr
+POST /api/esp-ai-terminal/chat
+GET  /api/esp-ai-terminal/llm/config
+GET  /api/esp-ai-terminal/tts/config
+POST /api/esp-ai-terminal/tts/synthesize
 ```
 
 后续新增：
 
 ```http
-POST /api/esp-ai-terminal/chat
-WS   /ws/esp-ai-terminal/tts
+WS   /ws/esp-ai-terminal/tts（可选优化，不属于当前 V0.8 基线）
 ```
 
 鉴权规则：
@@ -366,6 +376,49 @@ LLM_MODEL=<推理接入点 ID>
 5. 中文回复文本可以保留在服务器日志、串口日志或内部状态中。
 6. V0.7 屏幕只显示 `Response received` / `Reply ready` / `Error` 等状态。
 
+### 11.2.1 LLM 已验证结论
+
+```text
+V0.7 PASS：ASR final text → 自建服务器 Chat → 火山方舟 LLM → reply_text → ESP32。
+```
+
+已确认：
+
+1. `POST /api/esp-ai-terminal/chat` 使用 `X-Device-Token` 鉴权。
+2. 服务器可以调用火山方舟在线推理并返回中文 `reply_text`。
+3. ESP32 可以在 ASR final 后自动请求 Chat。
+4. ESP32 串口可以打印完整 UTF-8 中文回复。
+5. 屏幕不显示中文回复原文，只显示英文状态或非 ASCII 降级提示。
+6. V0.7 不接 TTS，不播放语音。
+7. `ARK_API_KEY` 只允许保存在服务器本地 `.env`，不得写入 ESP32 固件或仓库。
+
+服务器实测日志基线：
+
+```text
+LLM request: device_id=esp32s3-dev-001 provider=volcengine_ark language=zh input_chars=10 max_tokens=512
+LLM reply: device_id=esp32s3-dev-001 text=我是基于ESP32-S3的中文语音助手，能通过语音和你交流互动。
+POST /api/esp-ai-terminal/chat HTTP/1.1" 200 OK
+```
+
+ESP32 实测日志基线：
+
+```text
+AI: ASR final text: 自我介绍。
+AI: ASR state -> Done
+AI: LLM state -> Requesting
+CLOUD: chat request: text_chars=15
+CLOUD: POST /api/esp-ai-terminal/chat token_configured=yes
+CLOUD: chat reply text: 你好，我是ESP32-S3 AI语音终端的中文语音助手。我能通过语音和你互动，帮你处理各种任务，有什么需求随时跟我说吧~
+AI: LLM reply text: 你好，我是ESP32-S3 AI语音终端的中文语音助手。我能通过语音和你互动，帮你处理各种任务，有什么需求随时跟我说吧~
+AI: LLM state -> Done
+CLOUD: heartbeat ok, http_status=200
+```
+
+当前保留现象：
+
+1. Stop ASR 后 ESP-IDF WebSocket 底层 FIN read error 是非致命日志。
+2. 中文 LLM 回复不在屏幕显示原文，后续由 V0.8 TTS 完成中文输出。
+
 ### 11.3 TTS 规划
 
 ```env
@@ -383,6 +436,63 @@ TTS_VOICE_TYPE=<音色 ID>
 3. 不要求设备屏幕显示中文回复。
 4. TTS 音频可以短期缓存到 SD 卡，但必须有大小限制。
 5. 播放链路不得阻塞 UI task。
+
+### 11.3.1 TTS 已验证结论
+
+```text
+V0.8 PASS：LLM 中文回复 → 自建服务器 TTS → 火山 TTS → 16kHz / 16bit / mono PCM → ESP32 播放中文语音。
+```
+
+已确认：
+
+1. `GET /api/esp-ai-terminal/tts/config` 可用。
+2. `POST /api/esp-ai-terminal/tts/synthesize` 使用 `X-Device-Token` 鉴权。
+3. 服务器可以调用火山 TTS / 豆包语音合成 2.0。
+4. TTS 密钥只允许保存在服务器本地 `.env`，不得写入 ESP32 固件或仓库。
+5. 当前实测返回音频格式为 16kHz / 16bit / mono PCM。
+6. ESP32 可下载 TTS PCM 音频并通过 `service_audio` 播放。
+7. TTS 播放期间 UI 不阻塞，Cloud heartbeat 仍正常。
+8. 屏幕仍不显示中文原文，只显示英文状态或降级提示。
+9. V0.8 当前使用 HTTP 完整音频下载方案，后续可再评估流式 TTS。
+
+服务器侧 TTS 验证基线：
+
+```text
+python scripts/tts_smoke_test.py
+TTS smoke test start
+provider=volcengine
+model=seed-tts-2.0
+api_version=v3
+audio=16000Hz/16bit/1ch format=pcm
+credential_configured=True
+```
+
+ESP32 实测日志基线：
+
+```text
+AI: ASR final text: 做一个自我介绍。
+AI: LLM state -> Requesting
+CLOUD: POST /api/esp-ai-terminal/chat token_configured=yes
+CLOUD: chat reply text: 你好呀！我是你的ESP32-S3 AI语音助手，能听懂你的语音指令，帮你查信息、设提醒，还能用语音回答你问题哦。有什么需要帮忙的，随时说吧~
+AI: LLM state -> Done
+AI: TTS state -> Requesting
+AI: TTS state -> Downloading
+CLOUD: POST /api/esp-ai-terminal/tts/synthesize for TTS token_configured=yes
+CLOUD: TTS audio downloaded: bytes=397176 format=pcm sample_rate=16000 bits=16 channels=1
+AI: TTS state -> Playing
+AUDIO_OUT: pcm playback started: bytes=397176 sample_rate=16000 bits=16 channels=1
+CLOUD: heartbeat ok, http_status=200
+AUDIO_OUT: pcm playback stopped: result=ESP_OK
+AI: TTS state -> Done
+CLOUD: heartbeat ok, http_status=200
+```
+
+当前保留现象：
+
+1. Stop ASR 后 ESP-IDF WebSocket 底层 FIN read error 是非致命日志。
+2. 屏幕仍不显示中文原文，只显示英文状态或降级提示。
+3. V0.8 当前使用 HTTP 完整音频下载方案。
+4. 后续 V0.9 需要强化取消、超时、连续多轮对话处理。
 
 ---
 
@@ -504,4 +614,5 @@ curl http://127.0.0.1:18080/health
 5. 后续 ASR / LLM / TTS 都经服务器代理。
 6. 不要提交真实密钥。
 7. 不要求屏幕显示中文。
-8. 最终中文输出由 V0.8 TTS 负责。
+8. V0.8 已完成中文 TTS 语音输出基线。
+9. 后续 V0.9 重点是 AI Voice 状态机稳定性，不是更换 ASR / LLM / TTS 配置。

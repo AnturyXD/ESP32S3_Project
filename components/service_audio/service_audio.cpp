@@ -556,6 +556,102 @@ esp_err_t service_audio_stop_pcm_capture(void)
     return service_audio_stop_record_test();
 }
 
+esp_err_t service_audio_play_pcm_buffer(const int16_t *pcm,
+                                        size_t bytes,
+                                        int sample_rate,
+                                        int bits,
+                                        int channels)
+{
+    if (!s_inited) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (pcm == nullptr || bytes == 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (sample_rate != static_cast<int>(kSampleRate) || bits != static_cast<int>(kBitsPerSample) ||
+        (channels != 1 && channels != static_cast<int>(kPlaybackChannels))) {
+        audio_mark_error("PCM_FMT_UNSUPPORTED", "pcm playback format unsupported");
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    if (s_recording) {
+        ESP_RETURN_ON_ERROR(service_audio_stop_record_test(), TAG, "stop record before pcm play failed");
+    }
+    if (s_playing) {
+        ESP_RETURN_ON_ERROR(service_audio_stop_playback(), TAG, "stop previous playback failed");
+    }
+
+    /*
+     * V0.8 TTS 返回的是上层 mono PCM；板载 ES8311 播放槽位仍按 stereo 打开。
+     * 因此播放前逐帧复制到 L/R，避免只写单声道导致无声或声道错位。
+     */
+    const size_t input_samples = bytes / sizeof(int16_t);
+    const size_t input_frames = input_samples / static_cast<size_t>(channels);
+    const uint32_t frame_samples = (kSampleRate * kRecordFrameMs) / 1000;
+    const size_t stereo_frame_bytes = frame_samples * kPlaybackChannels * sizeof(int16_t);
+    int16_t *stereo_buf = static_cast<int16_t *>(heap_caps_malloc(stereo_frame_bytes, MALLOC_CAP_8BIT));
+    if (stereo_buf == nullptr) {
+        audio_mark_error("PCM_PLAY_MEM_FAIL", "pcm playback buffer alloc failed");
+        return ESP_ERR_NO_MEM;
+    }
+
+    portENTER_CRITICAL(&s_lock);
+    s_play_stop_req = false;
+    s_playing = true;
+    audio_touch_revision_locked();
+    portEXIT_CRITICAL(&s_lock);
+    audio_set_state(AUDIO_STATE_PLAYING);
+    audio_set_event("PCM_PLAY_STARTED");
+    ESP_LOGI(TAG_OUT,
+             "pcm playback started: bytes=%lu sample_rate=%d bits=%d channels=%d",
+             static_cast<unsigned long>(bytes),
+             sample_rate,
+             bits,
+             channels);
+
+    size_t offset_frames = 0;
+    esp_err_t result = ESP_OK;
+    while (!s_play_stop_req && offset_frames < input_frames) {
+        size_t frames_now = frame_samples;
+        if (frames_now > (input_frames - offset_frames)) {
+            frames_now = input_frames - offset_frames;
+        }
+
+        const int16_t *frame_src = pcm + offset_frames * static_cast<size_t>(channels);
+        if (channels == 1) {
+            audio_expand_mono_to_stereo(frame_src, stereo_buf, frames_now);
+        } else {
+            memcpy(stereo_buf, frame_src, frames_now * kPlaybackChannels * sizeof(int16_t));
+        }
+
+        const size_t write_bytes = frames_now * kPlaybackChannels * sizeof(int16_t);
+        int err = esp_codec_dev_write(s_playback, stereo_buf, static_cast<int>(write_bytes));
+        if (err != ESP_CODEC_DEV_OK) {
+            ESP_LOGE(TAG_OUT, "pcm esp_codec_dev_write failed: %d", static_cast<int>(err));
+            audio_mark_error("PCM_PLAY_WRITE_FAIL", "pcm playback write failed");
+            result = ESP_FAIL;
+            break;
+        }
+
+        audio_set_pcm_stats(static_cast<uint32_t>(write_bytes),
+                            audio_calc_peak(frame_src, frames_now * static_cast<size_t>(channels)));
+        offset_frames += frames_now;
+    }
+
+    heap_caps_free(stereo_buf);
+    portENTER_CRITICAL(&s_lock);
+    s_playing = false;
+    s_play_stop_req = false;
+    audio_touch_revision_locked();
+    portEXIT_CRITICAL(&s_lock);
+
+    if (s_state != AUDIO_STATE_ERROR && !s_recording) {
+        audio_set_state(AUDIO_STATE_READY);
+    }
+    audio_set_event(result == ESP_OK ? "PCM_PLAY_STOPPED" : "PCM_PLAY_ERROR");
+    ESP_LOGI(TAG_OUT, "pcm playback stopped: result=%s", esp_err_to_name(result));
+    return result;
+}
+
 esp_err_t service_audio_play_test_tone(void)
 {
     if (!s_inited) {

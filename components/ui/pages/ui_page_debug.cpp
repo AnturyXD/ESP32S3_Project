@@ -35,6 +35,11 @@ void ui_page_debug_create(lv_obj_t *screen, ui_page_nav_cb_t nav_cb, ui_page_sta
         views->debug_chat_http_label = nullptr;
         views->debug_chat_error_label = nullptr;
         views->debug_reply_received_label = nullptr;
+        views->debug_tts_state_label = nullptr;
+        views->debug_tts_http_label = nullptr;
+        views->debug_tts_format_label = nullptr;
+        views->debug_tts_bytes_label = nullptr;
+        views->debug_tts_error_label = nullptr;
         views->debug_ai_sent_label = nullptr;
         views->debug_ai_error_label = nullptr;
     }
@@ -259,5 +264,45 @@ void ui_page_debug_create(lv_obj_t *screen, ui_page_nav_cb_t nav_cb, ui_page_sta
     lv_obj_set_style_text_color(reply_received, lv_color_hex(kTextPrimary), 0);
     if (views != nullptr) {
         views->debug_reply_received_label = reply_received;
+    }
+
+    lv_obj_t *tts_state = lv_label_create(layout.content);
+    lv_label_set_text(tts_state, "TTS State: --");
+    lv_obj_align(tts_state, LV_ALIGN_TOP_LEFT, 2, 720);
+    lv_obj_set_style_text_color(tts_state, lv_color_hex(kTextPrimary), 0);
+    if (views != nullptr) {
+        views->debug_tts_state_label = tts_state;
+    }
+
+    lv_obj_t *tts_http = lv_label_create(layout.content);
+    lv_label_set_text(tts_http, "TTS HTTP: 0");
+    lv_obj_align(tts_http, LV_ALIGN_TOP_LEFT, 2, 746);
+    lv_obj_set_style_text_color(tts_http, lv_color_hex(kTextPrimary), 0);
+    if (views != nullptr) {
+        views->debug_tts_http_label = tts_http;
+    }
+
+    lv_obj_t *tts_format = lv_label_create(layout.content);
+    lv_label_set_text(tts_format, "TTS Format: --");
+    lv_obj_align(tts_format, LV_ALIGN_TOP_LEFT, 2, 772);
+    lv_obj_set_style_text_color(tts_format, lv_color_hex(kTextPrimary), 0);
+    if (views != nullptr) {
+        views->debug_tts_format_label = tts_format;
+    }
+
+    lv_obj_t *tts_bytes = lv_label_create(layout.content);
+    lv_label_set_text(tts_bytes, "TTS Bytes: 0");
+    lv_obj_align(tts_bytes, LV_ALIGN_TOP_LEFT, 2, 798);
+    lv_obj_set_style_text_color(tts_bytes, lv_color_hex(kTextPrimary), 0);
+    if (views != nullptr) {
+        views->debug_tts_bytes_label = tts_bytes;
+    }
+
+    lv_obj_t *tts_error = lv_label_create(layout.content);
+    lv_label_set_text(tts_error, "TTS Error: None");
+    lv_obj_align(tts_error, LV_ALIGN_TOP_LEFT, 2, 824);
+    lv_obj_set_style_text_color(tts_error, lv_color_hex(kTextSecondary), 0);
+    if (views != nullptr) {
+        views->debug_tts_error_label = tts_error;
     }
 }

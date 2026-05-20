@@ -7,7 +7,7 @@
 > 开发环境：VS Code + ESP-IDF  
 > UI 框架：LVGL  
 > 服务器：2 核 / 4G / 6M Linux 服务器，已有其他项目运行  
-> 当前路线：设备端 ASR 主链路已跑通，后续进入 ASR 稳定性收尾、LLM 文本代理、TTS 中文语音播放。
+> 当前路线：ASR / LLM / TTS 主链路已实机跑通，后续进入 AI Voice 状态机稳定性和 MVP 演示闭环。
 
 ---
 
@@ -48,6 +48,7 @@ S0.5      服务器侧火山 ASR WebSocket smoke test：PASS
 V0.6      ESP32 音频 → 自建服务器 → 火山 ASR → 识别结果返回设备：PASS / 主链路跑通
 V0.6.1    ASR 稳定性收尾，不做中文显示：PASS / 实机验收通过
 V0.7      LLM 文本对话代理：PASS / 实机验收通过
+V0.8      TTS 中文语音播放：PASS / 实机验收通过
 ```
 
 ### 1.2 当前已验证能力
@@ -83,7 +84,11 @@ V0.7      LLM 文本对话代理：PASS / 实机验收通过
 11. 服务器可调用火山方舟在线推理并返回中文回复文本。
 12. ESP32 已可收到 `reply_text`，串口可看到完整 UTF-8 中文回复。
 13. 屏幕不显示中文回复原文，继续使用英文状态降级显示。
-14. 暂未接 TTS。
+14. 火山 TTS 代理已接入。
+15. LLM 中文回复可发送到服务器 TTS 接口。
+16. 服务器可返回 16kHz / 16bit / mono PCM 音频。
+17. ESP32 可下载 TTS 音频并通过 `service_audio` 播放中文语音。
+18. TTS 播放期间 Cloud heartbeat 仍继续返回 `200 OK`。
 
 ### 1.3 S0.5 关键结论
 
@@ -227,6 +232,69 @@ CLOUD: heartbeat ok, http_status=200
 2. 这仍是非致命日志，业务层会正常进入 `Done`。
 3. 中文 LLM 回复不在屏幕显示原文，后续由 V0.8 TTS 完成中文输出。
 
+### 1.8 V0.8 实机验收结论
+
+```text
+V0.8 PASS：TTS 中文语音播放实机通过，可以进入 V0.9。
+```
+
+已确认：
+
+1. 服务器端 `GET /api/esp-ai-terminal/tts/config` 可用。
+2. 服务器端 `POST /api/esp-ai-terminal/tts/synthesize` 可用。
+3. TTS 合成接口复用 `X-Device-Token` 鉴权，缺失或错误 token 会返回 `401`。
+4. 服务器可调用火山 TTS / 豆包语音合成 2.0，并返回设备可播放音频。
+5. 当前实测返回音频格式为 16kHz / 16bit / mono PCM。
+6. ESP32 收到 LLM `reply_text` 后可自动请求 TTS。
+7. ESP32 可下载 TTS PCM 音频，并通过 `service_audio` 播放中文语音。
+8. mono PCM 播放前继续在设备端复制到 L/R 双声道槽位，适配当前 ES8311 播放链路。
+9. AI Voice 页面可显示 TTS State / Speaking / TTS Bytes / Done。
+10. 中文回复仍不在屏幕显示原文，中文输出由 TTS 语音承担。
+11. TTS 播放期间 UI 不阻塞，Cloud heartbeat 仍继续返回 `200 OK`。
+12. 未引入中文字体。
+13. 未接 Doubao Realtime API。
+14. 未修改 ASR / LLM 已通过配置。
+15. 未修改 Carshow / Nginx / Docker / systemd / UFW。
+
+服务器侧 TTS 验证基线：
+
+```text
+python scripts/tts_smoke_test.py
+TTS smoke test start
+provider=volcengine
+model=seed-tts-2.0
+api_version=v3
+audio=16000Hz/16bit/1ch format=pcm
+credential_configured=True
+```
+
+ESP32 实测日志基线：
+
+```text
+AI: ASR final text: 做一个自我介绍。
+AI: LLM state -> Requesting
+CLOUD: POST /api/esp-ai-terminal/chat token_configured=yes
+CLOUD: chat reply text: 你好呀！我是你的ESP32-S3 AI语音助手，能听懂你的语音指令，帮你查信息、设提醒，还能用语音回答你问题哦。有什么需要帮忙的，随时说吧~
+AI: LLM state -> Done
+AI: TTS state -> Requesting
+AI: TTS state -> Downloading
+CLOUD: POST /api/esp-ai-terminal/tts/synthesize for TTS token_configured=yes
+CLOUD: TTS audio downloaded: bytes=397176 format=pcm sample_rate=16000 bits=16 channels=1
+AI: TTS state -> Playing
+AUDIO_OUT: pcm playback started: bytes=397176 sample_rate=16000 bits=16 channels=1
+CLOUD: heartbeat ok, http_status=200
+AUDIO_OUT: pcm playback stopped: result=ESP_OK
+AI: TTS state -> Done
+CLOUD: heartbeat ok, http_status=200
+```
+
+当前保留的已知现象：
+
+1. Stop ASR 后仍可能出现 ESP-IDF WebSocket 底层 FIN read error，仍按非致命日志处理。
+2. 屏幕仍不显示中文原文，只显示英文状态或降级提示。
+3. V0.8 当前使用 HTTP 完整音频下载方案，后续可在 V0.8.x 或 V0.9 后评估流式 TTS。
+4. TTS 音频大小已有限制，后续仍需在 V0.9 统一状态机中强化取消、超时和连续多轮对话处理。
+
 ---
 
 ## 2. 最新紧凑版本路线
@@ -235,7 +303,7 @@ CLOUD: heartbeat ok, http_status=200
 V0.6      ESP32 音频 → 服务器 → 火山 ASR → 识别结果返回设备：PASS
 V0.6.1    ASR 稳定性收尾，不做中文显示：PASS
 V0.7      LLM 文本对话代理：PASS
-V0.8      TTS 中文语音播放
+V0.8      TTS 中文语音播放：PASS
 V0.9      AI Voice 状态机稳定性
 V1.0      MVP 演示版
 ```
@@ -245,8 +313,8 @@ V1.0      MVP 演示版
 1. V0.6 已经跑通主链路。
 2. V0.6.1 已完成稳定性收尾，不做中文字库。
 3. V0.7 已经接入 LLM，服务器和设备端都能拿到回复文本，不要求屏幕显示中文。
-4. 当前下一步是 V0.8：接入 TTS，重点验收设备能播放中文语音。
-5. V0.9 做完整 AI Voice 状态机和异常恢复。
+4. V0.8 已经接入 TTS，设备可以播放中文语音回复。
+5. 当前下一步是 V0.9：做完整 AI Voice 状态机、取消/超时/异常恢复和连续多轮对话稳定性。
 6. V1.0 做完整演示闭环。
 
 ---
@@ -675,7 +743,7 @@ ESP32 播放中文语音
 #### 方案 A：HTTP 返回完整音频
 
 ```http
-POST /api/esp-ai-terminal/tts
+POST /api/esp-ai-terminal/tts/synthesize
 ```
 
 优点：实现简单，适合先跑通。  
@@ -711,18 +779,37 @@ V0.8.x 再优化为 WebSocket 流式播放。
 ### 5.4 V0.8 验收标准
 
 ```text
-[ ] V0.7 LLM 回复正常
-[ ] 服务器 TTS 接口可用
-[ ] 服务器可以调用火山 TTS
-[ ] 服务器不泄露 TTS 密钥
-[ ] ESP32 能接收 TTS 音频
-[ ] ESP32 能播放中文语音
-[ ] 播放期间 UI 不阻塞
+[x] V0.7 LLM 回复正常
+[x] 服务器 TTS 配置检查接口可用
+[x] 服务器 TTS 合成接口可用
+[x] 服务器可以调用火山 TTS
+[x] 服务器不泄露 TTS 密钥
+[x] ESP32 能接收 TTS 音频
+[x] ESP32 能播放中文语音
+[x] 播放期间 UI 不阻塞
 [ ] Stop / Cancel 可中断播放或进入安全状态
-[ ] SD 卡缓存大小受限
-[ ] 屏幕不要求显示中文
-[ ] idf.py build 通过
+[x] TTS 音频下载大小受限
+[x] 屏幕不要求显示中文
+[x] idf.py build 通过
 ```
+
+### 5.5 V0.8 实现结论
+
+```text
+V0.8 已采用 HTTP 完整音频方案跑通。
+服务器接口：POST /api/esp-ai-terminal/tts/synthesize
+设备播放格式：16kHz / 16bit / mono PCM
+实测音频大小：397176 bytes
+实测播放结果：ESP_OK
+```
+
+V0.8 暂不解决的问题：
+
+1. 不做 TTS WebSocket 流式播放。
+2. 不做声音复刻。
+3. 不做长期音频缓存。
+4. 不引入中文字体。
+5. 不做统一 AI Voice 大状态机，统一状态机放到 V0.9。
 
 ---
 
@@ -826,20 +913,26 @@ V1.0 后再考虑：
 
 ## 9. 当前下一步建议
 
+当前操作：
+
+```text
+V0.8 小结与文档同步，TTS 中文语音播放已实机通过。
+```
+
 建议下一步执行：
 
 ```text
-V0.8：TTS 中文语音播放
+V0.9：AI Voice 状态机稳定性
 ```
 
 当前前置条件：
 
 ```text
-V0.7 已实机验收通过。
+V0.8 已实机验收通过。
 ```
 
 推荐继续保持以下顺序：
 
 ```text
-V0.7 → V0.8 → V0.9 → V1.0
+V0.8 → V0.9 → V1.0
 ```
